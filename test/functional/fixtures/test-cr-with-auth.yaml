@@ -1,0 +1,17 @@
+apiVersion: sync.ignition.io/v1alpha1
+kind: IgnitionSync
+metadata:
+  name: test-sync-auth
+spec:
+  git:
+    repo: "${GIT_REPO_URL}"
+    ref: "main"
+    auth:
+      token:
+        secretRef:
+          name: git-token-secret
+          key: token
+  gateway:
+    apiKeySecretRef:
+      name: ignition-api-key
+      key: apiKey

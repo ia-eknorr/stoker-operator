@@ -1,0 +1,9 @@
+apiVersion: sync.ignition.io/v1alpha1
+kind: IgnitionSync
+metadata:
+  name: test-sync-invalid
+spec:
+  gateway:
+    apiKeySecretRef:
+      name: ignition-api-key
+      key: apiKey
