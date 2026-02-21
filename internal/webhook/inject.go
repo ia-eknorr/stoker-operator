@@ -27,6 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -205,19 +206,22 @@ func injectSidecar(pod *corev1.Pod, isync *syncv1alpha1.IgnitionSync) {
 	// Build resources
 	resources := buildResources(isync)
 
-	// Security context (restricted PSS)
+	// Security context (restricted PSS).
+	// We intentionally omit RunAsUser so the agent inherits the pod-level
+	// security context. This ensures files written to the shared data volume
+	// are owned by the same UID as the gateway container (e.g. 2003 for
+	// Ignition helm chart pods), preventing permission errors.
 	restartAlways := corev1.ContainerRestartPolicyAlways
-	uid := int64(65532)
 	agentContainer := corev1.Container{
 		Name:            agentContainerName,
 		Image:           image,
 		ImagePullPolicy: corev1.PullPolicy(pullPolicy),
+		Command:         []string{"/agent"},
 		RestartPolicy:   &restartAlways,
 		Env:             env,
 		Resources:       resources,
 		SecurityContext: &corev1.SecurityContext{
 			RunAsNonRoot:             boolPtr(true),
-			RunAsUser:                &uid,
 			ReadOnlyRootFilesystem:   boolPtr(true),
 			AllowPrivilegeEscalation: boolPtr(false),
 			SeccompProfile: &corev1.SeccompProfile{
@@ -227,6 +231,16 @@ func injectSidecar(pod *corev1.Pod, isync *syncv1alpha1.IgnitionSync) {
 				Drop: []corev1.Capability{"ALL"},
 			},
 		},
+		StartupProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/startupz",
+					Port: intstr.FromInt32(8082),
+				},
+			},
+			PeriodSeconds:    2,
+			FailureThreshold: 30,
+		},
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: volumeSyncRepo, MountPath: mountRepo},
 			{Name: volumeGitCredentials, MountPath: mountGitCredentials, ReadOnly: true},
@@ -234,14 +248,21 @@ func injectSidecar(pod *corev1.Pod, isync *syncv1alpha1.IgnitionSync) {
 		},
 	}
 
-	// Add ignition-data mount if the volume already exists on the pod
-	for _, v := range pod.Spec.Volumes {
-		if v.Name == "ignition-data" {
-			agentContainer.VolumeMounts = append(agentContainer.VolumeMounts, corev1.VolumeMount{
-				Name:      "ignition-data",
-				MountPath: mountIgnitionData,
-			})
-			break
+	// Mount the Ignition data volume if it exists on the pod.
+	// Try well-known names: "ignition-data" (explicit) or "data" (Ignition helm chart PVC).
+	// When found, discover the mount path from existing containers to set DATA_PATH correctly.
+	dataVolName, dataPath := resolveDataVolume(pod)
+	if dataVolName != "" {
+		agentContainer.VolumeMounts = append(agentContainer.VolumeMounts, corev1.VolumeMount{
+			Name:      dataVolName,
+			MountPath: dataPath,
+		})
+		// Override DATA_PATH env var to match the actual mount
+		for i := range agentContainer.Env {
+			if agentContainer.Env[i].Name == "DATA_PATH" {
+				agentContainer.Env[i].Value = dataPath
+				break
+			}
 		}
 	}
 
@@ -404,6 +425,35 @@ func gitCredentialSecretName(isync *syncv1alpha1.IgnitionSync) string {
 		return isync.Spec.Git.Auth.GitHubApp.PrivateKeySecretRef.Name
 	}
 	return "git-credentials"
+}
+
+// resolveDataVolume finds the Ignition data volume on the pod and returns
+// (volumeName, mountPath). It looks for "ignition-data" first, then "data"
+// (standard Ignition helm chart PVC). The mount path is discovered from the
+// first container that mounts the volume; falls back to /ignition-data.
+func resolveDataVolume(pod *corev1.Pod) (string, string) {
+	candidates := []string{"ignition-data", "data"}
+	volumes := make(map[string]bool, len(pod.Spec.Volumes))
+	for _, v := range pod.Spec.Volumes {
+		volumes[v.Name] = true
+	}
+
+	for _, name := range candidates {
+		if !volumes[name] {
+			continue
+		}
+		// Find mount path from existing containers
+		for _, c := range pod.Spec.Containers {
+			for _, vm := range c.VolumeMounts {
+				if vm.Name == name {
+					return name, vm.MountPath
+				}
+			}
+		}
+		// Volume exists but not mounted — use default path
+		return name, mountIgnitionData
+	}
+	return "", ""
 }
 
 func boolPtr(b bool) *bool {
