@@ -293,6 +293,103 @@ func TestExecutePlan_ModifiedCounting(t *testing.T) {
 	}
 }
 
+func TestExecutePlan_DryRun_SkipsSymlinks(t *testing.T) {
+	tmp := t.TempDir()
+
+	src := filepath.Join(tmp, "src")
+	staging := filepath.Join(tmp, "staging")
+	live := filepath.Join(tmp, "live")
+
+	// Source has a real file and a symlink.
+	writeTestFile(t, filepath.Join(src, "real.txt"), "content")
+	if err := os.Symlink(filepath.Join(src, "real.txt"), filepath.Join(src, "link.txt")); err != nil {
+		t.Fatalf("creating symlink: %v", err)
+	}
+
+	// Live has one file in the managed dir so we can verify the diff is clean.
+	writeTestFile(t, filepath.Join(live, "data", "real.txt"), "content")
+
+	engine := &Engine{}
+	plan := &SyncPlan{
+		Mappings: []ResolvedMapping{
+			{Source: src, Destination: "data", Type: "dir"},
+		},
+		StagingDir: staging,
+		LiveDir:    live,
+		DryRun:     true,
+	}
+
+	result, err := engine.ExecutePlan(plan)
+	if err != nil {
+		t.Fatalf("ExecutePlan: %v", err)
+	}
+
+	if result.DryRunDiff == nil {
+		t.Fatal("expected DryRunDiff to be set")
+	}
+
+	// Symlink should not appear in any diff category.
+	symlinkPath := "data/link.txt"
+	for _, name := range result.DryRunDiff.Added {
+		if name == symlinkPath {
+			t.Error("symlink link.txt should not appear in Added")
+		}
+	}
+	for _, name := range result.DryRunDiff.Modified {
+		if name == symlinkPath {
+			t.Error("symlink link.txt should not appear in Modified")
+		}
+	}
+	for _, name := range result.DryRunDiff.Deleted {
+		if name == symlinkPath {
+			t.Error("symlink link.txt should not appear in Deleted")
+		}
+	}
+}
+
+func TestExecutePlan_OrphanCleanup_SkipsSymlinks(t *testing.T) {
+	tmp := t.TempDir()
+
+	src := filepath.Join(tmp, "src")
+	staging := filepath.Join(tmp, "staging")
+	live := filepath.Join(tmp, "live")
+
+	// Source has one real file.
+	writeTestFile(t, filepath.Join(src, "keep.txt"), "keep")
+
+	// Live has the real file plus a symlink in the managed dir.
+	writeTestFile(t, filepath.Join(live, "data", "keep.txt"), "keep")
+	// Create a target for the symlink so we can verify it survives.
+	writeTestFile(t, filepath.Join(tmp, "target.txt"), "target")
+	if err := os.Symlink(filepath.Join(tmp, "target.txt"), filepath.Join(live, "data", "dangling-link")); err != nil {
+		t.Fatalf("creating symlink in live: %v", err)
+	}
+
+	engine := &Engine{}
+	plan := &SyncPlan{
+		Mappings: []ResolvedMapping{
+			{Source: src, Destination: "data", Type: "dir"},
+		},
+		StagingDir: staging,
+		LiveDir:    live,
+	}
+
+	result, err := engine.ExecutePlan(plan)
+	if err != nil {
+		t.Fatalf("ExecutePlan: %v", err)
+	}
+
+	// The symlink in live should be left alone (skipped, not deleted as orphan).
+	if _, err := os.Lstat(filepath.Join(live, "data", "dangling-link")); err != nil {
+		t.Error("symlink in live dir should have been skipped by orphan cleanup, not deleted")
+	}
+
+	// No files should have been deleted (keep.txt matches, symlink skipped).
+	if result.FilesDeleted != 0 {
+		t.Errorf("expected 0 deleted, got %d", result.FilesDeleted)
+	}
+}
+
 func TestExecutePlan_SkipsSymlinks(t *testing.T) {
 	tmp := t.TempDir()
 
