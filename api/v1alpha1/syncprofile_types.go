@@ -141,32 +141,11 @@ type SyncProfileStatus struct {
 	// +optional
 	GatewayCount int32 `json:"gatewayCount,omitempty"`
 
-	// dryRunDiff summarizes what would change when dryRun is true.
-	// Populated by the controller from agent status ConfigMap data.
-	// +optional
-	DryRunDiff *DryRunDiffSummary `json:"dryRunDiff,omitempty"`
-
 	// conditions represent the current state.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
-}
-
-// DryRunDiffSummary reports what a dry-run sync would change.
-type DryRunDiffSummary struct {
-	// filesAdded is the count of files that would be created.
-	FilesAdded int32 `json:"filesAdded,omitempty"`
-
-	// filesModified is the count of files that would be changed.
-	FilesModified int32 `json:"filesModified,omitempty"`
-
-	// filesDeleted is the count of files that would be removed.
-	FilesDeleted int32 `json:"filesDeleted,omitempty"`
-
-	// lastEvaluated is when the dry-run was last performed.
-	// +optional
-	LastEvaluated *metav1.Time `json:"lastEvaluated,omitempty"`
 }
 
 // ============================================================

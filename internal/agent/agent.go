@@ -193,18 +193,7 @@ func (a *Agent) handleSyncTrigger(ctx context.Context, gitURL string, auth trans
 func (a *Agent) syncOnce(ctx context.Context, commit, ref string, isInitial bool) error {
 	log := logf.FromContext(ctx).WithName("sync")
 
-	var syncResult *syncengine.SyncResult
-	var profileName string
-	var isDryRun bool
-	var err error
-
-	if a.Config.HasSyncProfile() {
-		syncResult, profileName, isDryRun, err = a.syncWithProfile(ctx)
-	} else {
-		srcRoot := a.Config.SourceRoot()
-		dstRoot := a.Config.DataPath
-		syncResult, err = a.SyncEngine.Sync(srcRoot, dstRoot)
-	}
+	syncResult, profileName, isDryRun, err := a.syncWithProfile(ctx)
 
 	if err != nil {
 		a.reportError(ctx, commit, ref, fmt.Sprintf("sync engine: %v", err))

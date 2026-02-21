@@ -87,15 +87,13 @@ func (r *IgnitionSyncReconciler) discoverGateways(ctx context.Context, isync *sy
 			gatewayName = nameFromLabel
 		}
 
-		// Get service path and sync profile from annotations
-		servicePath := pod.Annotations[synctypes.AnnotationServicePath]
+		// Get sync profile from annotation
 		syncProfile := pod.Annotations[synctypes.AnnotationSyncProfile]
 
 		gateway := syncv1alpha1.DiscoveredGateway{
 			Name:        gatewayName,
 			Namespace:   pod.Namespace,
 			PodName:     pod.Name,
-			ServicePath: servicePath,
 			SyncProfile: syncProfile,
 			SyncStatus:  synctypes.SyncStatusPending,
 		}

@@ -22,9 +22,6 @@ const (
 	// SyncStatusPending indicates the agent is waiting to begin sync.
 	SyncStatusPending = "Pending"
 
-	// SyncStatusSyncing indicates the agent is actively syncing.
-	SyncStatusSyncing = "Syncing"
-
 	// SyncStatusSynced indicates the agent has successfully completed sync.
 	SyncStatusSynced = "Synced"
 

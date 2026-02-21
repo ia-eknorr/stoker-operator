@@ -24,14 +24,8 @@ const (
 	// TypeRefResolved indicates whether the git ref has been resolved to a commit SHA.
 	TypeRefResolved = "RefResolved"
 
-	// TypeWebhookReady indicates whether the webhook listener is active.
-	TypeWebhookReady = "WebhookReady"
-
 	// TypeAllGatewaysSynced indicates whether all discovered gateways have completed sync.
 	TypeAllGatewaysSynced = "AllGatewaysSynced"
-
-	// TypeBidirectionalReady indicates whether bi-directional sync watchers are active.
-	TypeBidirectionalReady = "BidirectionalReady"
 
 	// SyncProfile condition types
 
@@ -45,7 +39,6 @@ const (
 	ReasonRefResolved         = "RefResolved"
 	ReasonRefResolutionFailed = "RefResolutionFailed"
 	ReasonSyncSucceeded       = "SyncSucceeded"
-	ReasonSyncFailed          = "SyncFailed"
 	ReasonSyncInProgress      = "SyncInProgress"
 	ReasonPaused              = "Paused"
 	ReasonNoGateways          = "NoGatewaysDiscovered"

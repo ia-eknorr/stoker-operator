@@ -458,12 +458,10 @@ var _ = Describe("IgnitionSync Controller", func() {
 			createAnnotatedPod(ctx, "gw-pod-1", map[string]string{
 				synctypes.AnnotationCRName:      resourceName,
 				synctypes.AnnotationGatewayName: "gateway-alpha",
-				synctypes.AnnotationServicePath: "http://gw-pod-1:8088",
 			})
 			createAnnotatedPod(ctx, "gw-pod-2", map[string]string{
 				synctypes.AnnotationCRName:      resourceName,
 				synctypes.AnnotationGatewayName: "gateway-beta",
-				synctypes.AnnotationServicePath: "http://gw-pod-2:8088",
 			})
 
 			r := newReconciler(&fakeGitClient{result: git.Result{Commit: "abc123", Ref: "main"}})
