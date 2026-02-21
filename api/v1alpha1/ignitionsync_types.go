@@ -631,6 +631,10 @@ type DiscoveredGateway struct {
 	// +optional
 	ServicePath string `json:"servicePath,omitempty"`
 
+	// syncProfile is the name of the SyncProfile referenced by this gateway.
+	// +optional
+	SyncProfile string `json:"syncProfile,omitempty"`
+
 	// syncStatus is the current sync state of this gateway.
 	// +kubebuilder:validation:Enum=Pending;Syncing;Synced;Error
 	// +optional

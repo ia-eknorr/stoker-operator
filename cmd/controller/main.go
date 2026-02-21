@@ -193,6 +193,13 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "IgnitionSync")
 		os.Exit(1)
 	}
+	if err := (&controller.SyncProfileReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "SyncProfile")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	// Register webhook receiver if port is set

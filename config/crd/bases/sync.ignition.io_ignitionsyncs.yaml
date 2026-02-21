@@ -807,6 +807,10 @@ spec:
                             type: string
                         type: object
                       type: array
+                    syncProfile:
+                      description: syncProfile is the name of the SyncProfile referenced
+                        by this gateway.
+                      type: string
                     syncStatus:
                       description: syncStatus is the current sync state of this gateway.
                       enum:
