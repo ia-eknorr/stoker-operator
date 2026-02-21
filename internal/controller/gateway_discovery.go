@@ -87,14 +87,16 @@ func (r *IgnitionSyncReconciler) discoverGateways(ctx context.Context, isync *sy
 			gatewayName = nameFromLabel
 		}
 
-		// Get service path from annotation
+		// Get service path and sync profile from annotations
 		servicePath := pod.Annotations[synctypes.AnnotationServicePath]
+		syncProfile := pod.Annotations[synctypes.AnnotationSyncProfile]
 
 		gateway := syncv1alpha1.DiscoveredGateway{
 			Name:        gatewayName,
 			Namespace:   pod.Namespace,
 			PodName:     pod.Name,
 			ServicePath: servicePath,
+			SyncProfile: syncProfile,
 			SyncStatus:  synctypes.SyncStatusPending,
 		}
 
@@ -215,5 +217,39 @@ func (r *IgnitionSyncReconciler) updateReadyCondition(ctx context.Context, isync
 	} else {
 		r.setCondition(ctx, isync, conditions.TypeReady, metav1.ConditionFalse,
 			conditions.ReasonReconciling, "Waiting for gateways to sync")
+	}
+}
+
+// updateProfileGatewayCounts counts how many discovered gateways reference each
+// SyncProfile and patches the gatewayCount on each profile's status.
+func (r *IgnitionSyncReconciler) updateProfileGatewayCounts(ctx context.Context, isync *syncv1alpha1.IgnitionSync) {
+	log := logf.FromContext(ctx)
+
+	// Count gateways per profile
+	counts := make(map[string]int32)
+	for _, gw := range isync.Status.DiscoveredGateways {
+		if gw.SyncProfile != "" {
+			counts[gw.SyncProfile]++
+		}
+	}
+
+	// List all profiles in the namespace to update counts (including zeroing out stale ones)
+	var profileList syncv1alpha1.SyncProfileList
+	if err := r.List(ctx, &profileList, client.InNamespace(isync.Namespace)); err != nil {
+		log.Error(err, "failed to list SyncProfiles for gateway count update")
+		return
+	}
+
+	for i := range profileList.Items {
+		profile := &profileList.Items[i]
+		newCount := counts[profile.Name]
+		if profile.Status.GatewayCount == newCount {
+			continue
+		}
+		base := profile.DeepCopy()
+		profile.Status.GatewayCount = newCount
+		if err := r.Status().Patch(ctx, profile, client.MergeFrom(base)); err != nil {
+			log.Error(err, "failed to update SyncProfile gatewayCount", "profile", profile.Name)
+		}
 	}
 }

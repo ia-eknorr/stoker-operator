@@ -32,6 +32,11 @@ const (
 
 	// TypeBidirectionalReady indicates whether bi-directional sync watchers are active.
 	TypeBidirectionalReady = "BidirectionalReady"
+
+	// SyncProfile condition types
+
+	// TypeAccepted indicates whether the SyncProfile spec is valid.
+	TypeAccepted = "Accepted"
 )
 
 // Condition reasons for IgnitionSync status.conditions[].reason
@@ -44,4 +49,6 @@ const (
 	ReasonSyncInProgress      = "SyncInProgress"
 	ReasonPaused              = "Paused"
 	ReasonNoGateways          = "NoGatewaysDiscovered"
+	ReasonValidationPassed    = "ValidationPassed"
+	ReasonValidationFailed    = "ValidationFailed"
 )

@@ -163,6 +163,53 @@ DiscoveredGateway, GatewaySnapshot, SyncHistoryEntry
 
 ---
 
+## Phase 3a: SyncProfile CRD
+
+| # | Step | Status | Notes |
+|---|------|--------|-------|
+| 1 | Define SyncProfile types | done | SyncProfileSpec, SyncMapping, DeploymentModeSpec, ProfileDependency, DryRunDiffSummary |
+| 2 | Generate CRD manifest | done | `sync.ignition.io_syncprofiles.yaml` with printer columns (Mode, Gateways, Accepted, Age) |
+| 3 | Implement SyncProfile controller | done | Validates mappings (path traversal, absolute paths), sets Accepted condition |
+| 4 | Integrate with gateway discovery | done | Reads `sync-profile` annotation, populates `SyncProfile` on DiscoveredGateway, `updateProfileGatewayCounts` |
+| 5 | Wire into IgnitionSync controller | done | SyncProfile watch enqueues IgnitionSync reconciles via label selector |
+| 6 | Register in main.go | done | SyncProfileReconciler registered alongside IgnitionSyncReconciler |
+| 7 | Update RBAC | done | syncprofiles get/list/patch/update/watch, syncprofiles/status get/patch/update |
+| 8 | Update conditions package | done | TypeAccepted, ReasonValidationPassed, ReasonValidationFailed |
+| 9 | Write unit tests | done | 5 tests: valid profile, path traversal, absolute path, deploymentMode traversal, optional fields roundtrip |
+| 10 | Verify `make test` | done | 20/20 tests pass (5 new + 15 existing) |
+| 11 | Lab 03a manual verification | done | 16/16 checks pass in kind cluster |
+
+**Key files created/modified:**
+- `api/v1alpha1/syncprofile_types.go` — SyncProfile CRD types (SyncProfileSpec, SyncMapping, DeploymentModeSpec, ProfileDependency, DryRunDiffSummary)
+- `config/crd/bases/sync.ignition.io_syncprofiles.yaml` — Generated CRD with printer columns and validation
+- `internal/controller/syncprofile_controller.go` — Validates spec, sets Accepted condition, watches SyncProfile
+- `internal/controller/syncprofile_controller_test.go` — 5 envtest-based unit tests
+- `internal/controller/gateway_discovery.go` — Added SyncProfile field to DiscoveredGateway, `updateProfileGatewayCounts`
+- `internal/controller/ignitionsync_controller.go` — SyncProfile watch in SetupWithManager, step 4.5 profile count update
+- `api/v1alpha1/ignitionsync_types.go` — Added `SyncProfile` field to DiscoveredGateway
+- `cmd/controller/main.go` — Registered SyncProfileReconciler
+- `pkg/conditions/conditions.go` — Added TypeAccepted, ReasonValidationPassed, ReasonValidationFailed
+- `config/rbac/role.yaml` — Auto-generated with syncprofiles permissions
+
+**Lab 03a results (kind cluster, 16/16 checks):**
+- 3A.1: CRD installed, short name `sp` works
+- 3A.2: Valid profile → Accepted=True, observedGeneration=1
+- 3A.3: Path traversal → Accepted=False
+- 3A.4: Absolute path → Accepted=False
+- 3A.5–3A.7: Gateway discovery with sync-profile annotation, gatewayCount updates
+- 3A.8–3A.9: Profile update triggers reconcile, deletion degrades gracefully
+- 3A.10, 3A.12–3A.15: Optional fields (paused, dependsOn, vars, dryRun, required) roundtrip correctly
+- 3A.16: ref-override annotation preserved on discovered gateways
+- 3A.17: Ignition health check passes, operator 0 restarts, 0 errors
+
+**Design decisions:**
+- SyncProfile is a passive CRD — controller validates spec and sets Accepted condition, no reconciliation loop beyond validation
+- 3-tier config model: IgnitionSync (git, webhook, polling) → SyncProfile (mappings, deploymentMode, vars) → Pod annotations
+- Cross-controller: IgnitionSync controller patches `gatewayCount` on SyncProfile status during gateway discovery
+- Path validation rejects `..` traversal and absolute paths in both mappings and deploymentMode.source
+
+---
+
 ## Phase 5: Sync Agent
 
 | # | Step | Status | Notes |

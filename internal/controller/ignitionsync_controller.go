@@ -35,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	syncv1alpha1 "github.com/inductiveautomation/ignition-sync-operator/api/v1alpha1"
 	"github.com/inductiveautomation/ignition-sync-operator/internal/git"
@@ -148,6 +149,10 @@ func (r *IgnitionSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request
 				"Discovered %d gateway(s) (was %d)", len(gateways), prevGatewayCount)
 		}
 	}
+
+	// --- Step 4.5: Update SyncProfile gateway counts ---
+
+	r.updateProfileGatewayCounts(ctx, &isync)
 
 	// --- Step 5: Update conditions ---
 
@@ -353,12 +358,33 @@ func (r *IgnitionSyncReconciler) pollingInterval(isync *syncv1alpha1.IgnitionSyn
 	return d
 }
 
+// findIgnitionSyncsForProfile returns reconcile requests for all IgnitionSync CRs
+// in the same namespace as a changed SyncProfile, so gateway counts can be refreshed.
+func (r *IgnitionSyncReconciler) findIgnitionSyncsForProfile(ctx context.Context, obj client.Object) []reconcile.Request {
+	var isyncList syncv1alpha1.IgnitionSyncList
+	if err := r.List(ctx, &isyncList, client.InNamespace(obj.GetNamespace())); err != nil {
+		return nil
+	}
+
+	requests := make([]reconcile.Request, 0, len(isyncList.Items))
+	for _, isync := range isyncList.Items {
+		requests = append(requests, reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name:      isync.Name,
+				Namespace: isync.Namespace,
+			},
+		})
+	}
+	return requests
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *IgnitionSyncReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&syncv1alpha1.IgnitionSync{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Owns(&corev1.ConfigMap{}).
 		Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.findIgnitionSyncForPod)).
+		Watches(&syncv1alpha1.SyncProfile{}, handler.EnqueueRequestsFromMapFunc(r.findIgnitionSyncsForProfile)).
 		WithOptions(controller.Options{MaxConcurrentReconciles: 5}).
 		Named("ignitionsync").
 		Complete(r)
