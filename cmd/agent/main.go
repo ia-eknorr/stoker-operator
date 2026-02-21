@@ -23,8 +23,10 @@ import (
 
 func main() {
 	fmt.Println("ignition-sync-agent starting...")
-	// TODO: implement agent — watches ConfigMap for sync signals,
-	// copies files from shared PVC to /ignition-data/, triggers scan API
+	// TODO: implement agent — see docs/architecture/08-agent-development-plan.md
+	// Watches metadata ConfigMap for sync signals, clones repo to local emptyDir,
+	// builds staging from SyncProfile mappings, merges to /ignition-data/,
+	// triggers Ignition scan API, reports status via ConfigMap.
 	fmt.Println("agent not yet implemented")
 	os.Exit(0)
 }
