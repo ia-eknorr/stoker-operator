@@ -22,9 +22,7 @@ type Config struct {
 	SyncPeriod      int // seconds
 	GitTokenFile    string
 	GitSSHKeyFile   string
-	ServicePath     string // optional: repo subdirectory to sync
-	SystemName      string // optional: systemName for config normalization
-	SyncProfileName string // optional: SyncProfile CR name
+	SyncProfileName string // SyncProfile CR name
 }
 
 // LoadConfig reads agent configuration from environment variables.
@@ -41,8 +39,6 @@ func LoadConfig() (*Config, error) {
 		APIKeyFile:      os.Getenv("API_KEY_FILE"),
 		GitTokenFile:    os.Getenv("GIT_TOKEN_FILE"),
 		GitSSHKeyFile:   os.Getenv("GIT_SSH_KEY_FILE"),
-		ServicePath:     os.Getenv("SERVICE_PATH"),
-		SystemName:      os.Getenv("SYSTEM_NAME"),
 		SyncProfileName: os.Getenv("SYNC_PROFILE"),
 	}
 
@@ -80,6 +76,9 @@ func LoadConfig() (*Config, error) {
 	}
 	if cfg.PodNamespace == "" {
 		return nil, fmt.Errorf("POD_NAMESPACE env var is required")
+	}
+	if cfg.SyncProfileName == "" {
+		return nil, fmt.Errorf("SYNC_PROFILE env var is required")
 	}
 
 	return cfg, nil
@@ -132,17 +131,4 @@ func (c *Config) GatewayScheme() string {
 // GatewayHost returns the gateway address for API calls (localhost:port).
 func (c *Config) GatewayHost() string {
 	return "localhost:" + c.GatewayPort
-}
-
-// SourceRoot returns the directory to sync from (repo root or service-path subdir).
-func (c *Config) SourceRoot() string {
-	if c.ServicePath != "" {
-		return c.RepoPath + "/" + c.ServicePath
-	}
-	return c.RepoPath
-}
-
-// HasSyncProfile returns true if a SyncProfile name is configured.
-func (c *Config) HasSyncProfile() bool {
-	return c.SyncProfileName != ""
 }

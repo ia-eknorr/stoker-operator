@@ -13,7 +13,7 @@ Checklist of remaining work from [06a-agent-development-plan.md](architecture/06
 - [ ] 0.4 New condition types — `AgentReady`, `RefSkew`, `DependenciesMet` and associated reasons not in `pkg/conditions/conditions.go`
 - [ ] 0.5 SyncProfile printcolumn fix — `JSONPath=.spec.mappings` returns an array, not a count (`api/v1alpha1/syncprofile_types.go:180`)
 - [ ] 0.6 `dependsOn` cycle detection — no `validateDependsOnCycles()` in SyncProfile controller
-- [ ] 0.7 Redundant SyncProfile self-watch — `.Watches(&SyncProfile{}, ...)` still present on `For` resource (`internal/controller/syncprofile_controller.go:167`)
+- [x] 0.7 ~~Redundant SyncProfile self-watch~~ — removed in dead code cleanup
 
 ## Phase 1 — Agent Bootstrap & Identity
 
@@ -94,4 +94,18 @@ High-impact items to address first:
 5. **dependsOn cycle detection (0.6)** — safety net for SyncProfile graph
 6. **Designer session detection (5.3)** — prevents sync conflicts with active designers
 7. **Post-sync verification (5.4)** — confirms Ignition picked up changes
-8. **SyncProfile printcolumn fix (0.5)** and **self-watch cleanup (0.7)** — low-effort fixes
+8. **SyncProfile printcolumn fix (0.5)** — low-effort fix
+
+---
+
+## Dead Code Cleanup (Completed)
+
+The following were removed as dead code — speculative types/code that were never wired into any controller or agent logic. Feature concepts are preserved in [ideas.md](ideas.md).
+
+- **2-tier annotation mode** — `AnnotationServicePath`, `Sync()` method, `HasSyncProfile()`/`SourceRoot()` config methods. SyncProfile is now the only sync path.
+- **7 dead annotations** — `AnnotationServicePath`, `AnnotationDeploymentMode`, `AnnotationTagProvider`, `AnnotationSyncPeriod`, `AnnotationExcludePatterns`, `AnnotationSystemName`, `AnnotationSystemNameTemplate` (all superseded by SyncProfile).
+- **~400 lines of unimplemented CRD types** — `SharedSpec`, `AdditionalFile`, `NormalizeSpec`, `BidirectionalSpec`, `ValidationSpec`, `SnapshotSpec`, `DeploymentStrategySpec`, `IgnitionSpec`, `AgentSpec`, `WebhookSpec` and all sub-types.
+- **Dead IgnitionSyncSpec fields** — `webhook`, `siteNumber`, `shared`, `additionalFiles`, `normalize`, `bidirectional`, `validation`, `snapshots`, `deployment`, `ignition`, `agent`.
+- **Dead status types** — `GatewaySnapshot`, `SyncHistoryEntry`, `DryRunDiffSummary`, and `ServicePath`/`LastSnapshot`/`SyncHistory` fields on `DiscoveredGateway`.
+- **Dead condition** — `TypeBidirectionalReady`.
+- **Redundant SyncProfile self-watch** — `.Watches(&SyncProfile{})` was redundant with `For(&SyncProfile{})` and the map function targeted the wrong controller.

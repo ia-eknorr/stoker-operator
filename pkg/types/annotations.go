@@ -29,32 +29,10 @@ const (
 	// Auto-derived if exactly one CR exists in the namespace.
 	AnnotationCRName = AnnotationPrefix + "/cr-name"
 
-	// AnnotationServicePath is the repo-relative path to this gateway's service directory.
-	AnnotationServicePath = AnnotationPrefix + "/service-path"
-
 	// AnnotationGatewayName overrides gateway identity (defaults to pod label app.kubernetes.io/name).
 	AnnotationGatewayName = AnnotationPrefix + "/gateway-name"
 
-	// AnnotationDeploymentMode selects the config resource overlay to apply (e.g., "prd-cloud").
-	AnnotationDeploymentMode = AnnotationPrefix + "/deployment-mode"
-
-	// AnnotationTagProvider sets the UDT tag provider destination (default: "default").
-	AnnotationTagProvider = AnnotationPrefix + "/tag-provider"
-
-	// AnnotationSyncPeriod sets the fallback poll interval in seconds (default: "30").
-	AnnotationSyncPeriod = AnnotationPrefix + "/sync-period"
-
-	// AnnotationExcludePatterns is a comma-separated list of exclude globs for this gateway.
-	AnnotationExcludePatterns = AnnotationPrefix + "/exclude-patterns"
-
-	// AnnotationSystemName overrides the systemName used in config normalization.
-	AnnotationSystemName = AnnotationPrefix + "/system-name"
-
-	// AnnotationSystemNameTemplate is a Go template for systemName (default: "{{.GatewayName}}").
-	AnnotationSystemNameTemplate = AnnotationPrefix + "/system-name-template"
-
 	// AnnotationSyncProfile names the SyncProfile to use for this gateway pod.
-	// If omitted, the agent falls back to service-path annotation (2-tier mode).
 	AnnotationSyncProfile = AnnotationPrefix + "/sync-profile"
 
 	// AnnotationRefOverride overrides the git ref for this pod only.

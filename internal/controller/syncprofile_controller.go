@@ -25,12 +25,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	syncv1alpha1 "github.com/inductiveautomation/ignition-sync-operator/api/v1alpha1"
 	"github.com/inductiveautomation/ignition-sync-operator/pkg/conditions"
@@ -134,34 +131,10 @@ func setProfileCondition(profile *syncv1alpha1.SyncProfile, condType string, sta
 	profile.Status.Conditions = append(profile.Status.Conditions, condition)
 }
 
-// findIgnitionSyncsForProfile returns reconcile requests for all IgnitionSync CRs
-// in the same namespace as the changed SyncProfile.
-func (r *SyncProfileReconciler) findIgnitionSyncsForProfile(ctx context.Context, obj client.Object) []reconcile.Request {
-	var isyncList syncv1alpha1.IgnitionSyncList
-	if err := r.List(ctx, &isyncList, client.InNamespace(obj.GetNamespace())); err != nil {
-		return nil
-	}
-
-	requests := make([]reconcile.Request, 0, len(isyncList.Items))
-	for _, isync := range isyncList.Items {
-		requests = append(requests, reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Name:      isync.Name,
-				Namespace: isync.Namespace,
-			},
-		})
-	}
-	return requests
-}
-
 // SetupWithManager sets up the SyncProfile controller with the Manager.
 func (r *SyncProfileReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&syncv1alpha1.SyncProfile{}).
-		// When a SyncProfile changes, also re-reconcile all IgnitionSync CRs
-		// in the same namespace so they can update gatewayCount.
-		Watches(&syncv1alpha1.SyncProfile{},
-			handler.EnqueueRequestsFromMapFunc(r.findIgnitionSyncsForProfile)).
 		Named("syncprofile").
 		Complete(r)
 }
