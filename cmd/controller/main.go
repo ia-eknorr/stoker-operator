@@ -187,7 +187,7 @@ func main() {
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		GitClient: &git.GoGitClient{},
-		// TODO: remove use of deprecated function GetEventRecorderFor
+		//nolint:staticcheck // TODO: migrate to events.EventRecorder
 		Recorder: mgr.GetEventRecorderFor("ignition-sync-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "IgnitionSync")

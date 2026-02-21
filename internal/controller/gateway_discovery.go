@@ -65,7 +65,7 @@ func (r *IgnitionSyncReconciler) discoverGateways(ctx context.Context, isync *sy
 		return nil, fmt.Errorf("listing pods: %w", err)
 	}
 
-	var discovered []syncv1alpha1.DiscoveredGateway
+	discovered := make([]syncv1alpha1.DiscoveredGateway, 0, len(podList.Items))
 
 	for _, pod := range podList.Items {
 		// Filter by annotation

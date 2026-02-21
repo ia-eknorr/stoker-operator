@@ -35,6 +35,7 @@ import (
 
 	syncv1alpha1 "github.com/inductiveautomation/ignition-sync-operator/api/v1alpha1"
 	"github.com/inductiveautomation/ignition-sync-operator/internal/git"
+	"github.com/inductiveautomation/ignition-sync-operator/pkg/conditions"
 	synctypes "github.com/inductiveautomation/ignition-sync-operator/pkg/types"
 )
 
@@ -66,11 +67,11 @@ func newReconciler(gitClient git.Client) *IgnitionSyncReconciler {
 }
 
 // helper to create the required gateway API key secret
-func createAPIKeySecret(ctx context.Context, namespace, name string) {
+func createAPIKeySecret(ctx context.Context, name string) {
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: "default",
 		},
 		Data: map[string][]byte{
 			"apiKey": []byte("test-api-key"),
@@ -83,11 +84,11 @@ func createAPIKeySecret(ctx context.Context, namespace, name string) {
 }
 
 // helper to create an IgnitionSync CR
-func createCR(ctx context.Context, name, namespace, secretName string) *syncv1alpha1.IgnitionSync {
+func createCR(ctx context.Context, name, secretName string) {
 	cr := &syncv1alpha1.IgnitionSync{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: "default",
 		},
 		Spec: syncv1alpha1.IgnitionSyncSpec{
 			Git: syncv1alpha1.GitSpec{
@@ -103,15 +104,14 @@ func createCR(ctx context.Context, name, namespace, secretName string) *syncv1al
 		},
 	}
 	Expect(k8sClient.Create(ctx, cr)).To(Succeed())
-	return cr
 }
 
 // helper to create a pod annotated for gateway discovery and set it to Running
-func createAnnotatedPod(ctx context.Context, name, namespace, crName string, annotations map[string]string) {
+func createAnnotatedPod(ctx context.Context, name string, annotations map[string]string) {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
-			Namespace:   namespace,
+			Namespace:   "default",
 			Annotations: annotations,
 		},
 		Spec: corev1.PodSpec{
@@ -147,8 +147,8 @@ var _ = Describe("IgnitionSync Controller", func() {
 		nn := types.NamespacedName{Name: resourceName, Namespace: "default"}
 
 		BeforeEach(func() {
-			createAPIKeySecret(ctx, "default", secretName)
-			createCR(ctx, resourceName, "default", secretName)
+			createAPIKeySecret(ctx, secretName)
+			createCR(ctx, resourceName, secretName)
 		})
 
 		AfterEach(func() {
@@ -217,8 +217,8 @@ var _ = Describe("IgnitionSync Controller", func() {
 		nn := types.NamespacedName{Name: resourceName, Namespace: "default"}
 
 		BeforeEach(func() {
-			createAPIKeySecret(ctx, "default", secretName)
-			createCR(ctx, resourceName, "default", secretName)
+			createAPIKeySecret(ctx, secretName)
+			createCR(ctx, resourceName, secretName)
 		})
 
 		AfterEach(func() {
@@ -370,7 +370,7 @@ var _ = Describe("IgnitionSync Controller", func() {
 		nn := types.NamespacedName{Name: resourceName, Namespace: "default"}
 
 		BeforeEach(func() {
-			createAPIKeySecret(ctx, "default", secretName)
+			createAPIKeySecret(ctx, secretName)
 		})
 
 		AfterEach(func() {
@@ -426,8 +426,8 @@ var _ = Describe("IgnitionSync Controller", func() {
 		nn := types.NamespacedName{Name: resourceName, Namespace: "default"}
 
 		BeforeEach(func() {
-			createAPIKeySecret(ctx, "default", secretName)
-			createCR(ctx, resourceName, "default", secretName)
+			createAPIKeySecret(ctx, secretName)
+			createCR(ctx, resourceName, secretName)
 		})
 
 		AfterEach(func() {
@@ -455,12 +455,12 @@ var _ = Describe("IgnitionSync Controller", func() {
 
 		It("should discover annotated Running pods as gateways", func() {
 			// Create two annotated pods for this CR
-			createAnnotatedPod(ctx, "gw-pod-1", "default", resourceName, map[string]string{
+			createAnnotatedPod(ctx, "gw-pod-1", map[string]string{
 				synctypes.AnnotationCRName:      resourceName,
 				synctypes.AnnotationGatewayName: "gateway-alpha",
 				synctypes.AnnotationServicePath: "http://gw-pod-1:8088",
 			})
-			createAnnotatedPod(ctx, "gw-pod-2", "default", resourceName, map[string]string{
+			createAnnotatedPod(ctx, "gw-pod-2", map[string]string{
 				synctypes.AnnotationCRName:      resourceName,
 				synctypes.AnnotationGatewayName: "gateway-beta",
 				synctypes.AnnotationServicePath: "http://gw-pod-2:8088",
@@ -480,11 +480,11 @@ var _ = Describe("IgnitionSync Controller", func() {
 
 		It("should not discover pods for a different CR", func() {
 			// Pod for this CR
-			createAnnotatedPod(ctx, "gw-pod-1", "default", resourceName, map[string]string{
+			createAnnotatedPod(ctx, "gw-pod-1", map[string]string{
 				synctypes.AnnotationCRName: resourceName,
 			})
 			// Pod for a different CR
-			createAnnotatedPod(ctx, "gw-pod-other", "default", resourceName, map[string]string{
+			createAnnotatedPod(ctx, "gw-pod-other", map[string]string{
 				synctypes.AnnotationCRName: "some-other-cr",
 			})
 
@@ -498,7 +498,7 @@ var _ = Describe("IgnitionSync Controller", func() {
 		})
 
 		It("should fall back to pod name when gateway name annotation is missing", func() {
-			createAnnotatedPod(ctx, "gw-pod-1", "default", resourceName, map[string]string{
+			createAnnotatedPod(ctx, "gw-pod-1", map[string]string{
 				synctypes.AnnotationCRName: resourceName,
 				// No AnnotationGatewayName — should fall back
 			})
@@ -520,8 +520,8 @@ var _ = Describe("IgnitionSync Controller", func() {
 		nn := types.NamespacedName{Name: resourceName, Namespace: "default"}
 
 		BeforeEach(func() {
-			createAPIKeySecret(ctx, "default", secretName)
-			createCR(ctx, resourceName, "default", secretName)
+			createAPIKeySecret(ctx, secretName)
+			createCR(ctx, resourceName, secretName)
 		})
 
 		AfterEach(func() {
@@ -544,7 +544,7 @@ var _ = Describe("IgnitionSync Controller", func() {
 		})
 
 		It("should enrich gateways with status from ConfigMap", func() {
-			createAnnotatedPod(ctx, "gw-status-pod", "default", resourceName, map[string]string{
+			createAnnotatedPod(ctx, "gw-status-pod", map[string]string{
 				synctypes.AnnotationCRName:      resourceName,
 				synctypes.AnnotationGatewayName: "my-gateway",
 			})
@@ -598,8 +598,8 @@ var _ = Describe("IgnitionSync Controller", func() {
 		nn := types.NamespacedName{Name: resourceName, Namespace: "default"}
 
 		BeforeEach(func() {
-			createAPIKeySecret(ctx, "default", secretName)
-			createCR(ctx, resourceName, "default", secretName)
+			createAPIKeySecret(ctx, secretName)
+			createCR(ctx, resourceName, secretName)
 		})
 
 		AfterEach(func() {
@@ -624,7 +624,7 @@ var _ = Describe("IgnitionSync Controller", func() {
 		})
 
 		It("should set Ready=True when ref is resolved and all gateways synced", func() {
-			createAnnotatedPod(ctx, "gw-cond-1", "default", resourceName, map[string]string{
+			createAnnotatedPod(ctx, "gw-cond-1", map[string]string{
 				synctypes.AnnotationCRName:      resourceName,
 				synctypes.AnnotationGatewayName: "gw1",
 			})
@@ -663,7 +663,7 @@ var _ = Describe("IgnitionSync Controller", func() {
 			// Check AllGatewaysSynced
 			var allSyncedCond *metav1.Condition
 			for i := range cr.Status.Conditions {
-				if cr.Status.Conditions[i].Type == "AllGatewaysSynced" {
+				if cr.Status.Conditions[i].Type == conditions.TypeAllGatewaysSynced {
 					allSyncedCond = &cr.Status.Conditions[i]
 					break
 				}
@@ -674,11 +674,11 @@ var _ = Describe("IgnitionSync Controller", func() {
 		})
 
 		It("should set Ready=False when gateways are not all synced", func() {
-			createAnnotatedPod(ctx, "gw-cond-1", "default", resourceName, map[string]string{
+			createAnnotatedPod(ctx, "gw-cond-1", map[string]string{
 				synctypes.AnnotationCRName:      resourceName,
 				synctypes.AnnotationGatewayName: "gw1",
 			})
-			createAnnotatedPod(ctx, "gw-cond-2", "default", resourceName, map[string]string{
+			createAnnotatedPod(ctx, "gw-cond-2", map[string]string{
 				synctypes.AnnotationCRName:      resourceName,
 				synctypes.AnnotationGatewayName: "gw2",
 			})
@@ -718,7 +718,7 @@ var _ = Describe("IgnitionSync Controller", func() {
 			// AllGatewaysSynced should show 1/2
 			var allSyncedCond *metav1.Condition
 			for i := range cr.Status.Conditions {
-				if cr.Status.Conditions[i].Type == "AllGatewaysSynced" {
+				if cr.Status.Conditions[i].Type == conditions.TypeAllGatewaysSynced {
 					allSyncedCond = &cr.Status.Conditions[i]
 					break
 				}
@@ -738,7 +738,7 @@ var _ = Describe("IgnitionSync Controller", func() {
 
 			var allSyncedCond *metav1.Condition
 			for i := range cr.Status.Conditions {
-				if cr.Status.Conditions[i].Type == "AllGatewaysSynced" {
+				if cr.Status.Conditions[i].Type == conditions.TypeAllGatewaysSynced {
 					allSyncedCond = &cr.Status.Conditions[i]
 					break
 				}
