@@ -77,6 +77,11 @@ certManager:
   # -- Create a self-signed Issuer and Certificate for webhook TLS.
   enabled: false
 
+# -- Git webhook receiver for push-event-driven sync.
+webhookReceiver:
+  # -- Port for the inbound git webhook receiver. Set to 0 to disable.
+  port: 9444
+
 # -- Node selector labels for scheduling the controller pod.
 # Example:
 #   nodeSelector:

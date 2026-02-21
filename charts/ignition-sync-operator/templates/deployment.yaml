@@ -35,6 +35,7 @@ spec:
           {{- if and .Values.webhook.enabled .Values.certManager.enabled }}
             - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
           {{- end }}
+            - --webhook-receiver-port={{ .Values.webhookReceiver.port | default 9444 }}
           ports:
           {{- if .Values.webhook.enabled }}
             - containerPort: {{ .Values.webhook.port | default 9443 }}
