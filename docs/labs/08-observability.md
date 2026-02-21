@@ -62,9 +62,10 @@ Metrics output should include:
 
 3. **Custom operator metrics** (if implemented):
    ```
-   ignition_sync_clone_duration_seconds{...}
+   ignition_sync_ref_resolve_duration_seconds{...}
    ignition_sync_discovered_gateways{...}
    ignition_sync_synced_gateways{...}
+   ignition_sync_agent_clone_duration_seconds{...}
    ```
 
 Record which custom metrics exist — this informs whether we need to add more in a future iteration.
@@ -102,7 +103,7 @@ kubectl logs "$CTRL_POD" -n ignition-sync-operator-system --tail=30
 3. **Reconciliation logs have CR context:**
    ```bash
    kubectl logs "$CTRL_POD" -n ignition-sync-operator-system --tail=50 | \
-     jq -r 'select(.msg | test("reconcil|clone|gateway|pvc"; "i")) | {msg, controller, namespace, name}' 2>/dev/null | head -20
+     jq -r 'select(.msg | test("reconcil|resolve|gateway|ref"; "i")) | {msg, controller, namespace, name}' 2>/dev/null | head -20
    ```
    Expected: Each reconciliation log includes the CR namespace and name.
 
@@ -138,7 +139,7 @@ kubectl get events -n lab \
 | Reason | Type | Message Pattern |
 |--------|------|----------------|
 | `GatewaysDiscovered` | Normal | `Discovered N gateway(s)` |
-| Clone-related | Normal/Warning | Git clone succeeded/failed |
+| `RefResolved` | Normal/Warning | Ref resolved / resolution failed |
 
 ```bash
 # Check for specific event reasons
@@ -215,7 +216,7 @@ kubectl get ignitionsync lab-sync -n lab -o json | jq '[.status.conditions[] | {
 
 1. **All expected condition types present:**
    - `Ready`
-   - `RepoCloned`
+   - `RefResolved`
    - `AllGatewaysSynced`
 
 2. **Messages are human-readable** and actionable:
@@ -320,7 +321,7 @@ The pod should go through `Not Ready → Ready` as the controller initializes.
 ## Lab 8.7: Agent Logs (if sidecar is injected)
 
 ### Purpose
-Verify agent sidecar logs are accessible and structured.
+Verify agent sidecar logs are accessible and structured. The agent clones the git repo to a local emptyDir on the gateway pod and handles sync operations independently.
 
 ### Steps
 
@@ -333,7 +334,8 @@ kubectl logs ignition-0 -n lab -c sync-agent --tail=20 2>/dev/null || \
 ### What to Verify
 - Agent logs are structured JSON
 - Include gateway name, CR name, sync status
-- Include timing information for sync operations
+- Include clone and sync timing information (clone duration, sync duration)
+- Show the agent cloning the repo to its local emptyDir
 
 ---
 
@@ -381,7 +383,7 @@ kill $WATCH_PID 2>/dev/null || true
 ```
 
 ### What to Verify
-1. **During outage:** Events and conditions clearly indicate the problem (git clone failed for nonexistent repo)
+1. **During outage:** Events and conditions clearly indicate the problem (ref resolution failed for nonexistent repo)
 2. **Logs:** Error messages include enough context (repo URL, error details) to diagnose
 3. **After recovery:** Conditions return to healthy state, events show recovery
 4. **No manual intervention needed** beyond fixing the root cause (repo URL)

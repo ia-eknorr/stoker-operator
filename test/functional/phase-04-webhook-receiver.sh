@@ -17,7 +17,7 @@ WEBHOOK_REMOTE_PORT=9443
 # Setup: create API key secret and base CR
 apply_fixture "api-key-secret.yaml"
 apply_fixture "test-cr.yaml"
-wait_for_typed_condition "ignitionsync/test-sync" "RepoCloned" "True" 90
+wait_for_typed_condition "ignitionsync/test-sync" "RefResolved" "True" 90
 
 # Start port-forward to controller manager pod for webhook access
 CTRL_POD=$($KUBECTL get pods -n "$CONTROLLER_NS" -l control-plane=controller-manager \

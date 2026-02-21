@@ -367,7 +367,7 @@ port_forward_bg() {
 
 # ── Phase cleanup ───────────────────────────────────────────────────
 
-# Clean all test CRs, pods, configmaps, secrets, PVCs created during a phase.
+# Clean all test CRs, pods, configmaps, secrets created during a phase.
 # Leaves infrastructure (git server, controller) intact.
 phase_cleanup() {
     log_info "Cleaning up test resources..."
@@ -387,8 +387,6 @@ phase_cleanup() {
     $KUBECTL delete pods -n "$TEST_NAMESPACE" -l app=gateway-test --ignore-not-found 2>/dev/null || true
     $KUBECTL delete configmaps -n "$TEST_NAMESPACE" -l ignition-sync.io/cr-name --ignore-not-found 2>/dev/null || true
     $KUBECTL delete secrets -n "$TEST_NAMESPACE" -l app=func-test --ignore-not-found 2>/dev/null || true
-    # PVCs should be garbage collected via owner references, but clean stragglers
-    $KUBECTL delete pvc -n "$TEST_NAMESPACE" -l ignition-sync.io/cr-name --ignore-not-found 2>/dev/null || true
     sleep 2
 }
 

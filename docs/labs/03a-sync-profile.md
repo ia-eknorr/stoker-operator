@@ -193,7 +193,7 @@ spec:
       key: apiKey
 EOF
 
-# Wait for clone
+# Wait for ref resolution
 sleep 30
 
 # Create a pod with sync-profile annotation
@@ -489,9 +489,9 @@ sleep 10
 
 3. **IgnitionSync CR still healthy**:
    ```bash
-   kubectl get ignitionsync lab-sync -n lab -o jsonpath='{.status.repoCloneStatus}'
+   kubectl get ignitionsync lab-sync -n lab -o jsonpath='{.status.refResolutionStatus}'
    ```
-   Expected: Still `Cloned`
+   Expected: Still `Resolved`
 
 ### Cleanup
 ```bash
