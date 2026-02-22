@@ -198,7 +198,7 @@ type AgentSpec struct {
 // AgentImageSpec configures the agent container image.
 type AgentImageSpec struct {
     // repository is the container image repository.
-    // +kubebuilder:default="ghcr.io/inductiveautomation/ignition-sync-agent"
+    // +kubebuilder:default="ghcr.io/ia-eknorr/ignition-sync-agent"
     // +optional
     Repository string `json:"repository,omitempty"`
 
@@ -254,7 +254,7 @@ The webhook patches the pod spec with:
 initContainers:
   - name: sync-agent
     restartPolicy: Always    # Native sidecar — survives, restarts with pod
-    image: ghcr.io/inductiveautomation/ignition-sync-agent:1.0.0
+    image: ghcr.io/ia-eknorr/ignition-sync-agent:1.0.0
     env:
       - name: POD_NAME
         valueFrom:

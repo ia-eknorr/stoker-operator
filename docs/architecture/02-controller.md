@@ -37,7 +37,7 @@ spec:
       serviceAccountName: ignition-sync-controller
       containers:
         - name: manager
-          image: ghcr.io/inductiveautomation/ignition-sync-controller:1.0.0
+          image: ghcr.io/ia-eknorr/ignition-sync-controller:1.0.0
           args:
             - --leader-elect=true
             - --health-probe-bind-address=:8081
@@ -87,7 +87,7 @@ spec:
       serviceAccountName: ignition-sync-webhook
       containers:
         - name: webhook
-          image: ghcr.io/inductiveautomation/ignition-sync-controller:1.0.0
+          image: ghcr.io/ia-eknorr/ignition-sync-controller:1.0.0
           args:
             - --mode=webhook
             - --webhook-port=9443

@@ -112,7 +112,7 @@ Example Helm values enforcing digest pinning:
 ```yaml
 controller:
   image:
-    repository: ghcr.io/inductiveautomation/ignition-sync-controller
+    repository: ghcr.io/ia-eknorr/ignition-sync-controller
     tag: "1.0.0"
     digest: "sha256:abc123f..."  # Prevents tag mutability attacks
 ```

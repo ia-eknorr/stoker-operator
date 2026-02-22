@@ -366,7 +366,7 @@ type DryRunDiffSummary struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:resource:shortName=sp
-// +kubebuilder:printcolumn:name="Mappings",type="integer",JSONPath=`.spec.mappings`,description="Number of source→dest mappings"
+// NOTE: Mappings printcolumn was removed (JSONPath `.spec.mappings` returns an array, not an integer)
 // +kubebuilder:printcolumn:name="Mode",type="string",JSONPath=`.spec.deploymentMode.name`
 // +kubebuilder:printcolumn:name="Gateways",type="integer",JSONPath=`.status.gatewayCount`
 // +kubebuilder:printcolumn:name="Accepted",type="string",JSONPath=`.status.conditions[?(@.type=="Accepted")].status`

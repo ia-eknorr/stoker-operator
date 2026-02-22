@@ -28,7 +28,7 @@ kubectl get syncprofiles -n lab
 
 ### Expected Output
 - Short name `sp` works (empty list is fine)
-- Column headers include: `NAME`, `MAPPINGS`, `MODE`, `GATEWAYS`, `ACCEPTED`, `AGE`
+- Column headers include: `NAME`, `MODE`, `GATEWAYS`, `ACCEPTED`, `AGE`
 
 ---
 
@@ -242,59 +242,7 @@ kubectl delete pod gateway-profile-test -n lab
 
 ## Lab 4.6: Pod Without SyncProfile (2-Tier Backward Compatibility)
 
-### Purpose
-Verify that a pod without `sync-profile` annotation still works in 2-tier mode using the `service-path` annotation.
-
-### Steps
-
-```bash
-# Create a pod with service-path but NO sync-profile
-cat <<EOF | kubectl apply -n lab -f -
-apiVersion: v1
-kind: Pod
-metadata:
-  name: gateway-2tier-test
-  labels:
-    app.kubernetes.io/name: gateway-2tier-test
-  annotations:
-    ignition-sync.io/inject: "true"
-    ignition-sync.io/cr-name: "lab-sync"
-    ignition-sync.io/service-path: "services/gateway"
-    ignition-sync.io/gateway-name: "two-tier-gw"
-spec:
-  containers:
-    - name: ignition
-      image: registry.k8s.io/pause:3.9
-      imagePullPolicy: IfNotPresent
-EOF
-```
-
-### What to Verify
-
-1. **Gateway discovered**:
-   ```bash
-   kubectl get ignitionsync lab-sync -n lab \
-     -o jsonpath='{.status.discoveredGateways[?(@.name=="two-tier-gw")].name}'
-   ```
-   Expected: `two-tier-gw`
-
-2. **servicePath populated from annotation**:
-   ```bash
-   kubectl get ignitionsync lab-sync -n lab \
-     -o jsonpath='{.status.discoveredGateways[?(@.name=="two-tier-gw")].servicePath}'
-   ```
-   Expected: `services/gateway`
-
-3. **No errors in operator logs**:
-   ```bash
-   kubectl logs -n ignition-sync-operator-system -l control-plane=controller-manager --tail=20 | grep -i error
-   ```
-   Expected: No errors related to missing sync-profile.
-
-### Cleanup
-```bash
-kubectl delete pod gateway-2tier-test -n lab
-```
+> **Outdated:** This lab references the removed `service-path`/`servicePath` 2-tier annotation mode, which was removed as dead code. SyncProfile is now the only sync path. This lab is preserved for historical reference but should not be executed.
 
 ---
 
