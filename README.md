@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Stoker logo" width="180" />
+</p>
+
 # Stoker
 
 > **stok·er** /ˈstōkər/ — *a person who tends the fire in a furnace, feeding it fuel to keep it burning.*
