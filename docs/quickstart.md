@@ -12,6 +12,8 @@ This guide walks through a complete end-to-end setup: installing the operator, d
 <details>
 <summary>Need a cluster? Create one with kind</summary>
 
+Install kind: [kind.sigs.k8s.io](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
+
 ```bash
 kind create cluster --name stoker-quickstart
 kubectl cluster-info
