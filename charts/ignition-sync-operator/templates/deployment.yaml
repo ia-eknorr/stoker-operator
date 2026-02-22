@@ -33,9 +33,12 @@ spec:
             {{- end }}
             - --health-probe-bind-address=:8081
           {{- if and .Values.webhook.enabled .Values.certManager.enabled }}
-            - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
+            - --webhook-cert-path=/etc/webhook-certs
           {{- end }}
             - --webhook-receiver-port={{ .Values.webhookReceiver.port | default 9444 }}
+          env:
+            - name: DEFAULT_AGENT_IMAGE
+              value: "{{ .Values.agentImage.repository }}:{{ .Values.agentImage.tag | default .Chart.AppVersion }}"
           ports:
           {{- if .Values.webhook.enabled }}
             - containerPort: {{ .Values.webhook.port | default 9443 }}
@@ -64,19 +67,23 @@ spec:
             periodSeconds: 10
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if and .Values.webhook.enabled .Values.certManager.enabled }}
           volumeMounts:
-            - mountPath: /tmp/k8s-webhook-server/serving-certs
+            - mountPath: /tmp
+              name: tmp
+            {{- if and .Values.webhook.enabled .Values.certManager.enabled }}
+            - mountPath: /etc/webhook-certs
               name: cert
               readOnly: true
-          {{- end }}
-      {{- if and .Values.webhook.enabled .Values.certManager.enabled }}
+            {{- end }}
       volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if and .Values.webhook.enabled .Values.certManager.enabled }}
         - name: cert
           secret:
             defaultMode: 420
             secretName: {{ include "ignition-sync-operator.fullname" . }}-webhook-cert
-      {{- end }}
+        {{- end }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
