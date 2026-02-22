@@ -64,6 +64,8 @@ kubectl create secret generic gw-api-key -n quickstart \
   --from-literal=apiKey="ignition-api-key:CYCSdRgW6MHYkeIXhH-BMqo1oaqfTdFi8tXvHJeCKmY"
 ```
 
+> **Note:** This API key belongs to the public example repository and carries no security risk. The example repository is provided solely for this quickstart — do not use it as a base template for production projects. In your own deployments, generate unique API tokens for each gateway.
+
 No git credentials are needed since we're using a public repository.
 
 ## 5. Create a Stoker CR
