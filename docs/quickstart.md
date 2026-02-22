@@ -144,9 +144,9 @@ helm install ignition inductiveautomation/ignition \
   -n quickstart \
   --set commissioning.edition=standard \
   --set commissioning.acceptIgnitionEULA=true \
-  --set podAnnotations."stoker\.io/inject"="true" \
-  --set podAnnotations."stoker\.io/cr-name"="quickstart" \
-  --set podAnnotations."stoker\.io/sync-profile"="standard"
+  --set-string podAnnotations."stoker\.io/inject"="true" \
+  --set-string podAnnotations."stoker\.io/cr-name"="quickstart" \
+  --set-string podAnnotations."stoker\.io/sync-profile"="standard"
 ```
 
 The key annotations:
