@@ -4,6 +4,12 @@
 
 # Stoker
 
+<p align="center">
+  <a href="https://github.com/ia-eknorr/stoker-operator/actions/workflows/lint.yml"><img src="https://github.com/ia-eknorr/stoker-operator/actions/workflows/lint.yml/badge.svg" alt="Lint"></a>
+  <a href="https://github.com/ia-eknorr/stoker-operator/actions/workflows/test.yml"><img src="https://github.com/ia-eknorr/stoker-operator/actions/workflows/test.yml/badge.svg" alt="Test"></a>
+  <a href="https://github.com/ia-eknorr/stoker-operator/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT"></a>
+</p>
+
 > **stok·er** /ˈstōkər/ — *a person who tends the fire in a furnace, feeding it fuel to keep it burning.*
 
 Stoker tends your Ignition gateways, continuously feeding them configuration from Git to keep them running in the desired state.
