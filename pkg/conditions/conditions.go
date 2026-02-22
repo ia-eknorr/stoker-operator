@@ -36,3 +36,12 @@ const (
 	ReasonCycleDetected       = "CycleDetected"
 	ReasonDependencyNotFound  = "DependencyNotFound"
 )
+
+// Event reasons for K8s Events (not used as condition reasons).
+const (
+	ReasonSyncCompleted           = "SyncCompleted"
+	ReasonSyncFailed              = "SyncFailed"
+	ReasonDesignerSessionsBlocked = "DesignerSessionsBlocked"
+	ReasonWebhookReceived         = "WebhookReceived"
+	ReasonCloneFailed             = "CloneFailed"
+)

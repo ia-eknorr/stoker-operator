@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Only lint Go packages that have staged changes.
+STAGED_GO=$(git diff --cached --name-only --diff-filter=ACM -- '*.go' || true)
+[ -z "$STAGED_GO" ] && exit 0
+
+# Resolve changed packages (unique dirs → Go import-style ./dir/...).
+PKGS=$(echo "$STAGED_GO" | xargs -n1 dirname | sort -u | sed 's|^|./|;s|$|/...|')
+
+# Use project-local binary if available, fall back to PATH.
+LINT="${GOBIN:-$(go env GOPATH)/bin}/golangci-lint"
+[ -x "$LINT" ] || LINT="$(git rev-parse --show-toplevel)/bin/golangci-lint"
+[ -x "$LINT" ] || LINT="golangci-lint"
+
+echo "pre-commit: linting changed packages..."
+$LINT run $PKGS

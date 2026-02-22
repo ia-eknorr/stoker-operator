@@ -85,7 +85,11 @@ func (r *IgnitionSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	if isync.Spec.Paused {
 		log.Info("CR is paused, skipping reconciliation")
+		wasPaused := conditionHasReason(isync.Status.Conditions, conditions.TypeReady, conditions.ReasonPaused)
 		r.setCondition(ctx, &isync, conditions.TypeReady, metav1.ConditionFalse, conditions.ReasonPaused, "Reconciliation paused")
+		if !wasPaused {
+			r.Recorder.Event(&isync, corev1.EventTypeNormal, conditions.ReasonPaused, "Reconciliation paused")
+		}
 		return ctrl.Result{}, r.patchStatus(ctx, &isync, base)
 	}
 
@@ -101,7 +105,11 @@ func (r *IgnitionSyncReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	result, err := r.resolveRef(ctx, &isync)
 	if err != nil {
+		wasAlreadyFailed := conditionHasStatus(isync.Status.Conditions, conditions.TypeRefResolved, metav1.ConditionFalse)
 		r.setCondition(ctx, &isync, conditions.TypeRefResolved, metav1.ConditionFalse, conditions.ReasonRefResolutionFailed, err.Error())
+		if !wasAlreadyFailed {
+			r.Recorder.Eventf(&isync, corev1.EventTypeWarning, conditions.ReasonRefResolutionFailed, "Ref resolution failed: %s", err.Error())
+		}
 		isync.Status.RefResolutionStatus = "Error"
 		_ = r.patchStatus(ctx, &isync, base)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -403,6 +411,28 @@ func (r *IgnitionSyncReconciler) findIgnitionSyncsForProfile(ctx context.Context
 		})
 	}
 	return requests
+}
+
+// conditionHasStatus returns true if the conditions slice already contains
+// a condition of the given type with the given status.
+func conditionHasStatus(conds []metav1.Condition, condType string, status metav1.ConditionStatus) bool {
+	for _, c := range conds {
+		if c.Type == condType && c.Status == status {
+			return true
+		}
+	}
+	return false
+}
+
+// conditionHasReason returns true if the conditions slice already contains
+// a condition of the given type with the given reason.
+func conditionHasReason(conds []metav1.Condition, condType, reason string) bool {
+	for _, c := range conds {
+		if c.Type == condType && c.Reason == reason {
+			return true
+		}
+	}
+	return false
 }
 
 // annotationOrGenerationChanged passes update events where either the

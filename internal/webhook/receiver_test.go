@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	syncv1alpha1 "github.com/ia-eknorr/ignition-sync-operator/api/v1alpha1"
@@ -93,6 +94,7 @@ func newTestReceiver(hmacSecret string, objects ...runtime.Object) (*Receiver, *
 		Client:     fakeClient,
 		HMACSecret: hmacSecret,
 		Port:       9443,
+		Recorder:   record.NewFakeRecorder(20),
 	}
 
 	mux := http.NewServeMux()
