@@ -260,75 +260,40 @@ spec:
 EOF
 ```
 
-### Step 4: Annotate StatefulSets and add native sidecar
+### Step 4: Annotate StatefulSets for sidecar injection
 
-The sync-agent is deployed as a **native sidecar** — a K8s init container with `restartPolicy: Always`. It starts before the gateway, syncs config files, then its startup probe passes which unblocks the gateway container. It continues running alongside the gateway to watch for changes.
+The sync-agent is injected automatically by the MutatingWebhook as a **native sidecar** (K8s init container with `restartPolicy: Always`). Add the required annotations and the webhook handles container injection, volume mounts, and environment variables.
+
+> **Note:** If the webhook is not running when pods are created, the controller detects the `MissingSidecar` condition and reports it on the IgnitionSync status. Restart the pods after the webhook is available to trigger injection.
 
 ```bash
-# Function to patch a gateway with annotations and native sidecar
+# Function to annotate a gateway for sidecar injection
 patch_gateway() {
   local GW_NAME=$1 PROFILE=$2
 
-  # Add pod template annotations for gateway discovery
+  # Add pod template annotations for gateway discovery + injection
   kubectl -n ignition-test patch sts ${GW_NAME}-gateway --type=json -p="[
+    {\"op\": \"add\", \"path\": \"/spec/template/metadata/annotations/ignition-sync.io~1inject\", \"value\": \"true\"},
     {\"op\": \"add\", \"path\": \"/spec/template/metadata/annotations/ignition-sync.io~1cr-name\", \"value\": \"test-sync\"},
     {\"op\": \"add\", \"path\": \"/spec/template/metadata/annotations/ignition-sync.io~1gateway-name\", \"value\": \"${GW_NAME}\"},
     {\"op\": \"add\", \"path\": \"/spec/template/metadata/annotations/ignition-sync.io~1sync-profile\", \"value\": \"${PROFILE}\"}
-  ]"
-
-  # Add volumes and native sidecar
-  kubectl -n ignition-test patch sts ${GW_NAME}-gateway --type=json -p="[
-    {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"repo\", \"emptyDir\": {}}},
-    {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"api-key\", \"secret\": {\"secretName\": \"ignition-api-key\"}}},
-    {\"op\": \"add\", \"path\": \"/spec/template/spec/volumes/-\", \"value\": {\"name\": \"git-auth\", \"secret\": {\"secretName\": \"git-token-secret\"}}},
-    {\"op\": \"add\", \"path\": \"/spec/template/spec/initContainers/-\", \"value\": {
-      \"name\": \"sync-agent\",
-      \"image\": \"ignition-sync-operator:dev\",
-      \"imagePullPolicy\": \"IfNotPresent\",
-      \"restartPolicy\": \"Always\",
-      \"command\": [\"/agent\"],
-      \"env\": [
-        {\"name\": \"POD_NAME\", \"valueFrom\": {\"fieldRef\": {\"fieldPath\": \"metadata.name\"}}},
-        {\"name\": \"POD_NAMESPACE\", \"valueFrom\": {\"fieldRef\": {\"fieldPath\": \"metadata.namespace\"}}},
-        {\"name\": \"GATEWAY_NAME\", \"value\": \"${GW_NAME}\"},
-        {\"name\": \"CR_NAME\", \"value\": \"test-sync\"},
-        {\"name\": \"CR_NAMESPACE\", \"value\": \"ignition-test\"},
-        {\"name\": \"REPO_PATH\", \"value\": \"/repo\"},
-        {\"name\": \"DATA_PATH\", \"value\": \"/usr/local/bin/ignition/data\"},
-        {\"name\": \"SYNC_PROFILE\", \"value\": \"${PROFILE}\"},
-        {\"name\": \"GATEWAY_PORT\", \"value\": \"8088\"},
-        {\"name\": \"GATEWAY_TLS\", \"value\": \"false\"},
-        {\"name\": \"API_KEY_FILE\", \"value\": \"/secrets/apiKey\"},
-        {\"name\": \"SYNC_PERIOD\", \"value\": \"30\"},
-        {\"name\": \"GIT_TOKEN_FILE\", \"value\": \"/git-auth/token\"}
-      ],
-      \"startupProbe\": {
-        \"httpGet\": {\"path\": \"/startupz\", \"port\": 8082},
-        \"periodSeconds\": 2,
-        \"failureThreshold\": 30
-      },
-      \"resources\": {
-        \"requests\": {\"cpu\": \"50m\", \"memory\": \"64Mi\"},
-        \"limits\": {\"cpu\": \"200m\", \"memory\": \"128Mi\"}
-      },
-      \"volumeMounts\": [
-        {\"name\": \"repo\", \"mountPath\": \"/repo\"},
-        {\"name\": \"data\", \"mountPath\": \"/usr/local/bin/ignition/data\"},
-        {\"name\": \"api-key\", \"mountPath\": \"/secrets\", \"readOnly\": true},
-        {\"name\": \"git-auth\", \"mountPath\": \"/git-auth\", \"readOnly\": true}
-      ]
-    }}
   ]"
 }
 
 patch_gateway "ignition-blue" "blue-profile"
 patch_gateway "ignition-red" "red-profile"
 
-# Restart pods to pick up changes
+# Restart pods to pick up changes (webhook injects sidecar on pod creation)
 kubectl -n ignition-test delete pod ignition-blue-gateway-0 ignition-red-gateway-0
 kubectl -n ignition-test wait --for=condition=Ready pod/ignition-blue-gateway-0 --timeout=180s
 kubectl -n ignition-test wait --for=condition=Ready pod/ignition-red-gateway-0 --timeout=180s
 ```
+
+For manual sidecar patching (e.g., when the webhook is unavailable), the agent expects:
+- Volumes: `sync-repo` (emptyDir), `api-key` (secret → `ignition-api-key`), `git-credentials` (secret → `git-token-secret`)
+- Mount paths: `/etc/ignition-sync/api-key`, `/etc/ignition-sync/git-credentials`
+- Env: `API_KEY_FILE=/etc/ignition-sync/api-key/apiKey`, `GIT_TOKEN_FILE=/etc/ignition-sync/git-credentials/token`
+- Memory limit: `256Mi`
 
 ### Step 5: Verify
 

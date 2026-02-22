@@ -87,8 +87,7 @@ Add `ignition-sync.io/inject: "true"` to the Ignition StatefulSet and verify the
 ```bash
 # Add the inject annotation
 kubectl patch statefulset ignition -n lab --type=json -p='[
-  {"op": "add", "path": "/spec/template/metadata/annotations/ignition-sync.io~1inject", "value": "true"},
-  {"op": "add", "path": "/spec/template/metadata/annotations/ignition-sync.io~1service-path", "value": ""}
+  {"op": "add", "path": "/spec/template/metadata/annotations/ignition-sync.io~1inject", "value": "true"}
 ]'
 
 # This triggers a rolling restart

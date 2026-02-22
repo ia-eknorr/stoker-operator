@@ -235,7 +235,7 @@ The operator embeds deep knowledge of Ignition architecture to make sync safer a
   - Option A: Wait for session to close (configurable timeout)
   - Option B: Proceed with sync and reload projects (may disconnect Designer)
   - Option C: Fail the sync with condition "DesignerSessionActive"
-- User chooses behavior via `spec.ignition.designerSessionPolicy` (wait | proceed | fail)
+- User chooses behavior via SyncProfile `spec.designerSessionPolicy` (proceed | wait | fail)
 
 **Scan API Semantics (Fire-and-Forget)**
 - Ignition's scan API is fire-and-forget: `POST /data/api/v1/scan/projects` returns HTTP 200 immediately, confirming the scan was queued. The actual scan runs asynchronously inside the gateway's Java runtime.
@@ -328,23 +328,20 @@ ignition-sync.io/peer-gateway-name: "site2-backup"
 - After 2 failed health checks, backup promotes itself and begins independent syncing
 - Logs failover event with severity "warning"
 
-### Perspective Session Management
+### Designer Session Policy
 
-**Graceful Session Closure Before Sync**
+The `designerSessionPolicy` field on SyncProfile controls sync behavior when active Designer sessions are detected:
+
 ```yaml
 spec:
-  ignition:
-    perspectiveSessionPolicy: "graceful"  # or "immediate" or "none"
+  designerSessionPolicy: "proceed"  # or "wait" or "fail"
 ```
 
-- `graceful`: Send close message to all connected Perspective clients; wait 10s for disconnect
-- `immediate`: Force close all sessions (may appear as disconnect to users)
-- `none`: Proceed with sync without closing sessions (users may see stale data briefly)
+- `proceed`: Sync immediately regardless of active sessions (default)
+- `wait`: Delay sync until all Designer sessions close (configurable timeout)
+- `fail`: Fail the sync with condition "DesignerSessionActive"
 
-**Session Tracking**
-- Agent queries `GET /data/api/v2/sessions` before sync
-- Logs active session count and duration
-- If sync disrupts sessions, logs which modules were affected
+> **Note:** Perspective sessions are not currently tracked separately — the designer session policy applies to Ignition Designer (thick client) sessions only.
 
 ### Config Normalization Beyond systemName
 

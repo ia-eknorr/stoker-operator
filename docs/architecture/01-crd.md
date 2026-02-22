@@ -201,7 +201,7 @@ spec:
   # ============================================================
   agent:
     image:
-      repository: ghcr.io/inductiveautomation/ignition-sync-agent
+      repository: ghcr.io/ia-eknorr/ignition-sync-agent
       tag: "1.0.0"
       pullPolicy: IfNotPresent
       digest: ""          # Optional: pinned digest for supply chain security

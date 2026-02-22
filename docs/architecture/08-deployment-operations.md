@@ -44,7 +44,7 @@ helm install ignition-sync ia/ignition-sync \
 controller:
   replicas: 2
   image:
-    repository: ghcr.io/inductiveautomation/ignition-sync-controller
+    repository: ghcr.io/ia-eknorr/ignition-sync-controller
     tag: "1.0.0"
   # Restrict to specific namespaces (empty = all)
   watchNamespaces: []
@@ -54,7 +54,7 @@ controller:
 webhook:
   replicas: 2
   image:
-    repository: ghcr.io/inductiveautomation/ignition-sync-controller
+    repository: ghcr.io/ia-eknorr/ignition-sync-controller
     tag: "1.0.0"
   # cert-manager issuer for webhook TLS
   certManager:
@@ -64,7 +64,7 @@ webhook:
 
 agent:
   image:
-    repository: ghcr.io/inductiveautomation/ignition-sync-agent
+    repository: ghcr.io/ia-eknorr/ignition-sync-agent
     tag: "1.0.0"
 
 # Global defaults applied to all IgnitionSync CRs (overridable per CR)

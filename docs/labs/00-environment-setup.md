@@ -103,8 +103,7 @@ The operator discovers gateways via annotations. Add them to the Ignition Statef
 ```bash
 kubectl patch statefulset ignition -n lab --type=json -p='[
   {"op": "add", "path": "/spec/template/metadata/annotations/ignition-sync.io~1cr-name", "value": "lab-sync"},
-  {"op": "add", "path": "/spec/template/metadata/annotations/ignition-sync.io~1gateway-name", "value": "lab-gateway"},
-  {"op": "add", "path": "/spec/template/metadata/annotations/ignition-sync.io~1service-path", "value": ""}
+  {"op": "add", "path": "/spec/template/metadata/annotations/ignition-sync.io~1gateway-name", "value": "lab-gateway"}
 ]'
 ```
 
