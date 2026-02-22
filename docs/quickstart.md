@@ -70,7 +70,7 @@ No git credentials are needed for this quickstart since we're using a public rep
 
 ## 5. Create a Stoker CR
 
-The Stoker CR defines the git repository to sync from:
+The Stoker CR defines the git repository to sync from. We set `gateway.port` and `gateway.tls` to match the default Ignition Helm chart (HTTP on 8088):
 
 ```bash
 cat <<'EOF' | kubectl apply -f -
@@ -84,6 +84,8 @@ spec:
     repo: "https://github.com/ia-eknorr/test-ignition-project.git"
     ref: "main"
   gateway:
+    port: 8088
+    tls: false
     apiKeySecretRef:
       name: gw-api-key
       key: apiKey
@@ -130,7 +132,19 @@ kubectl get syncprofiles -n quickstart
 
 The `ACCEPTED` column should show `True`.
 
-## 7. Deploy an Ignition gateway
+## 7. Grant agent RBAC
+
+The agent sidecar needs permission to read Stoker CRs, SyncProfiles, and write status ConfigMaps. The Helm chart installs a ClusterRole for this — bind it to the gateway's service account:
+
+```bash
+kubectl create rolebinding stoker-agent -n quickstart \
+  --clusterrole=stoker-stoker-operator-agent \
+  --serviceaccount=quickstart:ignition
+```
+
+> **Note:** The service account name (`ignition`) matches the default created by the Ignition Helm chart. If your gateway uses a different service account, substitute it here.
+
+## 8. Deploy an Ignition gateway
 
 Install using the [official Ignition Helm chart](https://charts.ia.io) with Stoker annotations:
 
@@ -167,29 +181,82 @@ kubectl get pods -n quickstart -w
 
 You should see the Ignition pod with **2/2** containers ready (the gateway + the `stoker-agent` sidecar).
 
-## 8. Verify sync
+## 9. Verify the deployment
 
-Check the Stoker CR status:
+Once the gateway pod shows **2/2**, walk through these checks to confirm everything is wired up correctly.
+
+### Confirm sidecar injection
+
+Verify the pod has both containers — the gateway and the injected `stoker-agent` sidecar:
+
+```bash
+kubectl get pod -n quickstart -o custom-columns=\
+NAME:.metadata.name,\
+CONTAINERS:.spec.initContainers[*].name,\
+STATUS:.status.phase
+```
+
+You should see `stoker-agent` listed as an init container (native sidecar).
+
+### Check events
+
+Look at the namespace events to see the injection and sync activity:
+
+```bash
+kubectl get events -n quickstart --sort-by=.lastTimestamp | tail -15
+```
+
+### Check the Stoker CR status
 
 ```bash
 kubectl get stokers -n quickstart
 ```
 
-The `GATEWAYS` column should show the discovered gateway and `SYNCED` should be `True`.
+After about 60 seconds you should see:
 
-Check the agent logs to see what was synced:
+```text
+NAME         REF    SYNCED   GATEWAYS             READY   AGE
+quickstart   main   True     1/1 gateways synced  True    5m
+```
+
+> **Using a placeholder API key?** The `SYNCED` column may show `False` and `GATEWAYS` may show `0/1 gateways synced` because the agent cannot call the Ignition scan API with a placeholder key. Files are still delivered — see the agent logs below. To get a clean `True` status, create a real API key through the Ignition web UI (see [Next steps](#next-steps)).
+
+### Describe the Stoker CR
+
+For detailed status including conditions and discovered gateways:
+
+```bash
+kubectl describe stoker quickstart -n quickstart
+```
+
+Look for:
+
+- **Conditions:** `RefResolved=True` and `GatewaysReady=True`
+- **Gateway Statuses:** should list the gateway pod with its sync status and commit hash
+
+### Read the agent logs
 
 ```bash
 kubectl logs -n quickstart -l app.kubernetes.io/name=ignition -c stoker-agent --tail=20
 ```
 
-You can also inspect the status ConfigMap for detailed sync information:
+Look for:
+
+- `clone complete` — the repo was cloned successfully
+- `files synced` with `added` and `projects` — files were delivered to the gateway
+- `scan API warning (non-fatal)` — expected with a placeholder API key
+
+### Inspect the status ConfigMap
+
+The agent writes detailed sync status to a ConfigMap:
 
 ```bash
-kubectl get cm -n quickstart -l stoker.io/cr-name=quickstart
+kubectl get cm stoker-status-quickstart -n quickstart -o jsonpath='{.data}' | python3 -m json.tool
 ```
 
-## 9. Explore
+This shows the synced commit, file counts, project names, and any error messages per gateway.
+
+## 10. Explore
 
 Open the Ignition web UI to see the synced projects:
 
