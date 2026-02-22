@@ -64,7 +64,8 @@ kubectl create secret generic gw-api-key -n quickstart \
   --from-literal=apiKey="ignition-api-key:CYCSdRgW6MHYkeIXhH-BMqo1oaqfTdFi8tXvHJeCKmY"
 ```
 
-> **Note:** This API key belongs to the public example repository and carries no security risk. The example repository is provided solely for this quickstart — do not use it as a base template for production projects. In your own deployments, generate unique API tokens for each gateway.
+> [!NOTE]
+> This API key belongs to the public example repository and carries no security risk. The example repository is provided solely for this quickstart — do not use it as a base template for production projects. In your own deployments, generate unique API tokens for each gateway.
 
 No git credentials are needed since we're using a public repository.
 
@@ -142,7 +143,8 @@ kubectl create rolebinding stoker-agent -n quickstart \
   --serviceaccount=quickstart:ignition
 ```
 
-> **Note:** The service account name (`ignition`) matches the default created by the Ignition Helm chart. If your gateway uses a different service account, substitute it here.
+> [!NOTE]
+> The service account name (`ignition`) matches the default created by the Ignition Helm chart. If your gateway uses a different service account, substitute it here.
 
 ## 8. Deploy an Ignition gateway
 
@@ -186,7 +188,8 @@ The key annotations:
 | `stoker.io/cr-name` | `"quickstart"` | Links to the Stoker CR |
 | `stoker.io/sync-profile` | `"standard"` | Links to the SyncProfile |
 
-> **Why install the gateway last?** The Stoker webhook injects the agent sidecar when a pod is created. By installing the operator and CRs first, the webhook is ready to inject on the gateway's first pod creation -- no restart needed.
+> [!TIP]
+> **Why install the gateway last?** The Stoker webhook injects the agent sidecar when a pod is created. By installing the operator and CRs first, the webhook is ready to inject on the gateway's first pod creation — no restart needed.
 
 Wait for the gateway to start:
 
