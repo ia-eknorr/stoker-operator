@@ -11,6 +11,13 @@ image:
   # -- Image pull policy (Always, IfNotPresent, Never).
   pullPolicy: IfNotPresent
 
+# -- Agent sidecar image injected into gateway pods by the webhook.
+agentImage:
+  # -- Image repository for the sync agent sidecar.
+  repository: ghcr.io/inductiveautomation/ignition-sync-agent
+  # -- Image tag. Defaults to the chart's appVersion if empty.
+  tag: ""
+
 # -- Credentials for private container registries.
 # Example:
 #   imagePullSecrets:
@@ -75,7 +82,8 @@ webhook:
 # Requires cert-manager to be installed in the cluster.
 certManager:
   # -- Create a self-signed Issuer and Certificate for webhook TLS.
-  enabled: false
+  # Requires cert-manager to be installed in the cluster.
+  enabled: true
 
 # -- Git webhook receiver for push-event-driven sync.
 webhookReceiver:
