@@ -9,7 +9,9 @@ import (
 	"net/http"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -30,6 +32,7 @@ type Receiver struct {
 	Client     client.Client
 	HMACSecret string
 	Port       int32
+	Recorder   record.EventRecorder
 }
 
 // Start starts the webhook HTTP server. Blocks until ctx is cancelled.
@@ -124,6 +127,7 @@ func (rv *Receiver) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	rv.Recorder.Eventf(&isync, corev1.EventTypeNormal, "WebhookReceived", "Webhook from %s, ref %q", source, ref)
 	log.Info("webhook accepted", "namespace", namespace, "cr", crName, "ref", ref, "source", source)
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"accepted": true,

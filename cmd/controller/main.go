@@ -178,9 +178,11 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "IgnitionSync")
 		os.Exit(1)
 	}
+	//nolint:staticcheck // TODO: migrate to events.EventRecorder
 	if err := (&controller.SyncProfileReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("syncprofile-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SyncProfile")
 		os.Exit(1)
@@ -198,10 +200,12 @@ func main() {
 	// Register webhook receiver if port is set
 	if webhookReceiverPort > 0 {
 		hmacSecret := os.Getenv("WEBHOOK_HMAC_SECRET")
+		//nolint:staticcheck // TODO: migrate to events.EventRecorder
 		receiver := &iswebhook.Receiver{
 			Client:     mgr.GetClient(),
 			HMACSecret: hmacSecret,
 			Port:       int32(webhookReceiverPort),
+			Recorder:   mgr.GetEventRecorderFor("webhook-receiver"),
 		}
 		if err := mgr.Add(receiver); err != nil {
 			setupLog.Error(err, "unable to add webhook receiver")

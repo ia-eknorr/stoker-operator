@@ -23,3 +23,6 @@ rules:
   - apiGroups: ["sync.ignition.io"]
     resources: ["syncprofiles"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]

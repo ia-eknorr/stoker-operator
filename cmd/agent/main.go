@@ -6,10 +6,15 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -39,8 +44,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Build event recorder (non-fatal if it fails).
+	recorder, shutdownRecorder := buildEventRecorder(log)
+	if shutdownRecorder != nil {
+		defer shutdownRecorder()
+	}
+
 	// Create and run the agent.
-	a := agent.New(cfg, k8sClient)
+	a := agent.New(cfg, k8sClient, recorder)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -64,4 +75,32 @@ func buildK8sClient() (client.Client, error) {
 	}
 
 	return client.New(config, client.Options{Scheme: scheme})
+}
+
+// buildEventRecorder creates a K8s event recorder for the agent. Returns
+// (nil, nil) if setup fails — the agent should continue without events.
+func buildEventRecorder(log logr.Logger) (record.EventRecorder, func()) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		log.Info("event recorder unavailable (no in-cluster config)", "error", err)
+		return nil, nil
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Info("event recorder unavailable (clientset error)", "error", err)
+		return nil, nil
+	}
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(syncv1alpha1.AddToScheme(scheme))
+
+	broadcaster := record.NewBroadcaster()
+	broadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{
+		Interface: clientset.CoreV1().Events(""),
+	})
+	recorder := broadcaster.NewRecorder(scheme, corev1.EventSource{Component: "ignition-sync-agent"})
+
+	return recorder, broadcaster.Shutdown
 }

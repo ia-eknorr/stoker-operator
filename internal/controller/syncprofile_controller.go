@@ -7,8 +7,10 @@ import (
 	"slices"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -20,11 +22,13 @@ import (
 // SyncProfileReconciler reconciles a SyncProfile object.
 type SyncProfileReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=sync.ignition.io,resources=syncprofiles,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=sync.ignition.io,resources=syncprofiles/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func (r *SyncProfileReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -40,9 +44,11 @@ func (r *SyncProfileReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err := validateSyncProfile(&profile); err != nil {
 		log.Info("SyncProfile validation failed", "name", profile.Name, "error", err.Error())
 		setProfileCondition(&profile, conditions.TypeAccepted, metav1.ConditionFalse, conditions.ReasonValidationFailed, err.Error())
-	} else if err := r.validateDependencies(ctx, &profile); err != nil {
-		log.Info("SyncProfile dependency validation failed", "name", profile.Name, "error", err.Error())
-		setProfileCondition(&profile, conditions.TypeAccepted, metav1.ConditionFalse, err.reason, err.Error())
+		r.Recorder.Eventf(&profile, corev1.EventTypeWarning, conditions.ReasonValidationFailed, "Validation failed: %s", err.Error())
+	} else if depErr := r.validateDependencies(ctx, &profile); depErr != nil {
+		log.Info("SyncProfile dependency validation failed", "name", profile.Name, "error", depErr.Error())
+		setProfileCondition(&profile, conditions.TypeAccepted, metav1.ConditionFalse, depErr.reason, depErr.Error())
+		r.Recorder.Eventf(&profile, corev1.EventTypeWarning, depErr.reason, "%s", depErr.Error())
 	} else {
 		setProfileCondition(&profile, conditions.TypeAccepted, metav1.ConditionTrue, conditions.ReasonValidationPassed, "Profile spec is valid")
 	}

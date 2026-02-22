@@ -16,7 +16,7 @@ Unlike Lab 06 (which manually patches StatefulSets with the sidecar), this lab u
 export E2E_NS=e2e-webhook
 export OPERATOR_NS=ignition-sync-operator-system
 export GIT_REPO_URL=https://github.com/ia-eknorr/test-ignition-project.git
-export API_TOKEN="ignition-api-key:<your-api-token>"
+export API_TOKEN="ignition-api-key:CYCSdRgW6MHYkeIXhH-BMqo1oaqfTdFi8tXvHJeCKmY"
 ```
 
 ---
@@ -98,7 +98,7 @@ kubectl create secret generic git-token-secret -n $E2E_NS \
 
 # Create API key secret (for agent → gateway API calls)
 kubectl create secret generic ignition-api-key -n $E2E_NS \
-  --from-literal=apiKey="ignition-api-key:<your-api-token>"
+  --from-literal=apiKey="ignition-api-key:CYCSdRgW6MHYkeIXhH-BMqo1oaqfTdFi8tXvHJeCKmY"
 
 # Create API token config (for Ignition gateway to recognize the API key)
 kubectl create configmap ignition-api-token-config -n $E2E_NS \
@@ -465,7 +465,169 @@ Confirm the agent successfully cloned the repo, synced files, and reported statu
 
 ---
 
-## Lab 10.7: API Verification
+## Lab 10.7: Kubernetes Events Verification
+
+### Purpose
+Verify the operator, webhook receiver, and agent emit K8s events for key state transitions. Events are visible via `kubectl describe` and `kubectl get events`, providing an operator-friendly troubleshooting signal.
+
+### Steps
+
+1. **Verify SyncCompleted events from agent:**
+   ```bash
+   kubectl get events -n $E2E_NS --field-selector reason=SyncCompleted
+   ```
+   Expected: At least one `Normal` event per gateway (two total), with messages like `Sync completed on ignition-blue: commit <sha>, N file(s) changed`.
+
+2. **Verify GatewaysDiscovered event from controller:**
+   ```bash
+   kubectl get events -n $E2E_NS --field-selector reason=GatewaysDiscovered
+   ```
+   Expected: At least one `Normal` event showing `Discovered N gateway(s)`.
+
+3. **Test WebhookReceived event — trigger via webhook:**
+   ```bash
+   # Port-forward the webhook receiver
+   kubectl port-forward -n $OPERATOR_NS deploy/ignition-sync-operator-controller-manager 9444:9444 &
+   WH_PF_PID=$!
+   sleep 2
+
+   # Compute HMAC signature (skip if HMAC is not configured)
+   HMAC_SECRET=$(kubectl get secret webhook-hmac -n $OPERATOR_NS \
+     -o jsonpath='{.data.webhook-secret}' 2>/dev/null | base64 -d)
+   BODY='{"ref":"v99.0.0-event-test"}'
+   if [ -n "$HMAC_SECRET" ]; then
+     SIG="sha256=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$HMAC_SECRET" | awk '{print $NF}')"
+     HMAC_HEADER="-H X-Hub-Signature-256:${SIG}"
+   else
+     HMAC_HEADER=""
+   fi
+
+   # Send webhook
+   curl -s -X POST "http://localhost:9444/webhook/$E2E_NS/e2e-sync" \
+     -H "Content-Type: application/json" \
+     $HMAC_HEADER \
+     -d "$BODY"
+   # Expected: HTTP 202, {"accepted":true,"ref":"v99.0.0-event-test"}
+
+   kill $WH_PF_PID 2>/dev/null
+   ```
+
+   Verify the event:
+   ```bash
+   kubectl get events -n $E2E_NS --field-selector reason=WebhookReceived
+   ```
+   Expected: `Normal` event with message `Webhook from generic, ref "v99.0.0-event-test"`.
+
+4. **Test Paused event — pause and unpause the CR:**
+   ```bash
+   kubectl patch ignitionsync e2e-sync -n $E2E_NS --type merge -p '{"spec":{"paused":true}}'
+   sleep 5
+   kubectl get events -n $E2E_NS --field-selector reason=Paused
+   ```
+   Expected: `Normal` event with message `Reconciliation paused`.
+
+   Unpause:
+   ```bash
+   kubectl patch ignitionsync e2e-sync -n $E2E_NS --type merge -p '{"spec":{"paused":false}}'
+   ```
+
+5. **Test RefResolutionFailed event — set an invalid ref:**
+   ```bash
+   kubectl annotate ignitionsync e2e-sync -n $E2E_NS \
+     ignition-sync.io/requested-ref=nonexistent-tag-xyz --overwrite
+   sleep 10
+   kubectl get events -n $E2E_NS --field-selector reason=RefResolutionFailed
+   ```
+   Expected: `Warning` event with message `Ref resolution failed: ref "nonexistent-tag-xyz" not found...`.
+
+   Clean up the invalid ref:
+   ```bash
+   kubectl annotate ignitionsync e2e-sync -n $E2E_NS ignition-sync.io/requested-ref-
+   ```
+
+6. **Test SyncProfile validation events — create invalid profiles:**
+   ```bash
+   # ValidationFailed: path traversal
+   cat <<'EOF' | kubectl apply -f -
+   apiVersion: sync.ignition.io/v1alpha1
+   kind: SyncProfile
+   metadata:
+     name: test-validation-fail
+     namespace: e2e-webhook
+   spec:
+     mappings:
+       - source: "../../etc/passwd"
+         destination: "projects/test"
+   EOF
+
+   sleep 5
+   kubectl get events -n $E2E_NS --field-selector reason=ValidationFailed
+   ```
+   Expected: `Warning` event with `path traversal (..) not allowed`.
+
+   ```bash
+   # CycleDetected + DependencyNotFound: circular dependency
+   cat <<'EOF' | kubectl apply -f -
+   apiVersion: sync.ignition.io/v1alpha1
+   kind: SyncProfile
+   metadata:
+     name: test-cycle-a
+     namespace: e2e-webhook
+   spec:
+     mappings:
+       - source: "projects/test"
+         destination: "projects/test"
+     dependsOn:
+       - profileName: test-cycle-b
+   ---
+   apiVersion: sync.ignition.io/v1alpha1
+   kind: SyncProfile
+   metadata:
+     name: test-cycle-b
+     namespace: e2e-webhook
+   spec:
+     mappings:
+       - source: "projects/test"
+         destination: "projects/test"
+     dependsOn:
+       - profileName: test-cycle-a
+   EOF
+
+   sleep 5
+   kubectl get events -n $E2E_NS --field-selector reason=CycleDetected
+   kubectl get events -n $E2E_NS --field-selector reason=DependencyNotFound
+   ```
+   Expected: `CycleDetected` warning on one profile, `DependencyNotFound` warning on the other.
+
+7. **Clean up test profiles:**
+   ```bash
+   kubectl delete syncprofile test-validation-fail test-cycle-a test-cycle-b -n $E2E_NS 2>/dev/null
+   ```
+
+8. **Summary — all expected events:**
+   ```bash
+   kubectl get events -n $E2E_NS --field-selector involvedObject.kind=IgnitionSync \
+     --sort-by=.lastTimestamp
+   kubectl get events -n $E2E_NS --field-selector involvedObject.kind=SyncProfile \
+     --sort-by=.lastTimestamp
+   ```
+
+   | Reason | Type | Emitter | Verified |
+   |--------|------|---------|----------|
+   | `SyncCompleted` | Normal | Agent | |
+   | `WebhookReceived` | Normal | Webhook | |
+   | `Paused` | Normal | Controller | |
+   | `RefResolutionFailed` | Warning | Controller | |
+   | `GatewaysDiscovered` | Normal | Controller | |
+   | `ValidationFailed` | Warning | SyncProfile Controller | |
+   | `CycleDetected` | Warning | SyncProfile Controller | |
+   | `DependencyNotFound` | Warning | SyncProfile Controller | |
+
+   **Note:** `SyncFailed`, `CloneFailed`, and `DesignerSessionsBlocked` events are emitted by the agent on failure conditions. These are difficult to trigger in a healthy lab environment but share the same event emission path as `SyncCompleted`.
+
+---
+
+## Lab 10.8: API Verification
 
 ### Purpose
 Verify the synced configuration is live on both gateways using the Ignition REST API.
@@ -529,7 +691,7 @@ kill $BLUE_PF_PID $RED_PF_PID 2>/dev/null
 
 ---
 
-## Lab 10.8: Git Ref Update and Re-Sync
+## Lab 10.9: Git Ref Update and Re-Sync
 
 ### Purpose
 Push a change to the test repo, verify the controller detects the new commit, and the agent re-syncs the updated config to both gateways.
@@ -624,7 +786,7 @@ Push a change to the test repo, verify the controller detects the new commit, an
 
 ---
 
-## Lab 10.9: Teardown
+## Lab 10.10: Teardown
 
 ### Steps
 
@@ -671,6 +833,13 @@ echo "Skipping teardown — namespace $E2E_NS retained for next iteration"
 | Agent logs show successful clone and sync | |
 | Status ConfigMap shows both gateways `Synced` | |
 | CR shows `2/2 gateways synced`, `Ready: True` | |
+| `SyncCompleted` events emitted by both agents | |
+| `WebhookReceived` event emitted on webhook trigger | |
+| `Paused` event emitted on CR pause transition | |
+| `RefResolutionFailed` event emitted on invalid ref | |
+| `ValidationFailed` event emitted on bad SyncProfile | |
+| `CycleDetected` event emitted on dependency cycle | |
+| `DependencyNotFound` event emitted on missing dependency | |
 | `verify-gateway.sh` passes for blue (name, project, cobranding, db, tags) | |
 | `verify-gateway.sh` passes for red (name, project, cobranding, db, tags) | |
 | Git ref update detected by controller (new commit SHA) | |

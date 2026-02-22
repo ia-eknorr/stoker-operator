@@ -10,12 +10,16 @@ import (
 	gogithttp "github.com/go-git/go-git/v5/plumbing/transport/http"
 	gogitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"golang.org/x/crypto/ssh"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	syncv1alpha1 "github.com/ia-eknorr/ignition-sync-operator/api/v1alpha1"
 	"github.com/ia-eknorr/ignition-sync-operator/internal/git"
 	"github.com/ia-eknorr/ignition-sync-operator/internal/ignition"
 	"github.com/ia-eknorr/ignition-sync-operator/internal/syncengine"
+	"github.com/ia-eknorr/ignition-sync-operator/pkg/conditions"
 	synctypes "github.com/ia-eknorr/ignition-sync-operator/pkg/types"
 )
 
@@ -30,13 +34,15 @@ type Agent struct {
 	IgnitionAPI  *ignition.Client
 	HealthServer *HealthServer
 	Watcher      *Watcher
+	Recorder     record.EventRecorder // may be nil
 
+	isyncRef         *syncv1alpha1.IgnitionSync // cached for event target
 	lastSyncedCommit string
 	initialSyncDone  bool
 }
 
 // New creates a new Agent with all dependencies wired.
-func New(cfg *Config, k8sClient client.Client) *Agent {
+func New(cfg *Config, k8sClient client.Client, recorder record.EventRecorder) *Agent {
 	// Build exclude patterns.
 	excludes := []string{"**/.git/**", "**/.git", "**/.gitkeep", "**/.resources/**", "**/.resources"}
 
@@ -51,6 +57,7 @@ func New(cfg *Config, k8sClient client.Client) *Agent {
 		IgnitionAPI:  igClient,
 		HealthServer: NewHealthServer(":8082"),
 		Watcher:      NewWatcher(k8sClient, cfg.CRNamespace, cfg.CRName, time.Duration(cfg.SyncPeriod)*time.Second),
+		Recorder:     recorder,
 	}
 }
 
@@ -81,6 +88,9 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	log.Info("metadata loaded", "gitURL", meta.GitURL, "commit", meta.Commit, "ref", meta.Ref)
 
+	// Cache IgnitionSync CR reference for event emission.
+	a.fetchISyncRef(ctx)
+
 	// Resolve git auth from mounted files.
 	auth := a.resolveFileAuth()
 
@@ -94,6 +104,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	log.Info("cloning repository", "url", gitURL, "ref", meta.Ref)
 	result, err := a.GitClient.CloneOrFetch(ctx, gitURL, meta.Ref, a.Config.RepoPath, auth)
 	if err != nil {
+		a.event(corev1.EventTypeWarning, conditions.ReasonCloneFailed, "Initial clone failed: %v", err)
 		return fmt.Errorf("initial clone: %w", err)
 	}
 	log.Info("clone complete", "commit", result.Commit)
@@ -273,6 +284,7 @@ func (a *Agent) checkDesignerSessions(ctx context.Context, policy, commit, ref s
 
 	case "fail":
 		log.Info("designer sessions active, aborting sync per policy", "sessions", sessionInfo)
+		a.event(corev1.EventTypeWarning, conditions.ReasonDesignerSessionsBlocked, "Designer sessions blocked sync: %s", sessionInfo)
 		a.reportError(ctx, commit, ref, fmt.Sprintf("designer sessions active (policy=fail): %s", sessionInfo))
 		return true
 
@@ -292,6 +304,7 @@ func (a *Agent) checkDesignerSessions(ctx context.Context, policy, commit, ref s
 				return true
 			case <-timeout:
 				log.Info("timed out waiting for designer sessions to close", "sessions", sessionInfo)
+				a.event(corev1.EventTypeWarning, conditions.ReasonDesignerSessionsBlocked, "Designer sessions blocked sync (5m timeout): %s", sessionInfo)
 				a.reportError(ctx, commit, ref, fmt.Sprintf("designer sessions still active after 5m timeout: %s", sessionInfo))
 				return true
 			case <-ticker.C:
@@ -345,6 +358,7 @@ func (a *Agent) syncOnce(ctx context.Context, commit, ref string, isInitial bool
 
 	if err != nil {
 		a.reportError(ctx, commit, ref, fmt.Sprintf("sync engine: %v", err))
+		a.event(corev1.EventTypeWarning, conditions.ReasonSyncFailed, "Sync failed: %v", err)
 		return fmt.Errorf("sync engine: %w", err)
 	}
 
@@ -419,6 +433,9 @@ func (a *Agent) syncOnce(ctx context.Context, commit, ref string, isInitial bool
 		log.Info("status written to ConfigMap", "gateway", a.Config.GatewayName, "status", syncStatus)
 	}
 
+	a.event(corev1.EventTypeNormal, conditions.ReasonSyncCompleted,
+		"Sync completed on %s: commit %s, %d file(s) changed", a.Config.GatewayName, commit[:min(12, len(commit))], filesChanged)
+
 	a.lastSyncedCommit = commit
 	return nil
 }
@@ -478,6 +495,7 @@ func (a *Agent) syncWithProfile(ctx context.Context) (*syncengine.SyncResult, st
 
 // reportError writes an error status to the status ConfigMap.
 func (a *Agent) reportError(ctx context.Context, commit, ref, errMsg string) {
+	a.event(corev1.EventTypeWarning, conditions.ReasonSyncFailed, "%s", errMsg)
 	status := &synctypes.GatewayStatus{
 		SyncStatus:   synctypes.SyncStatusError,
 		SyncedCommit: commit,
@@ -487,6 +505,26 @@ func (a *Agent) reportError(ctx context.Context, commit, ref, errMsg string) {
 		ErrorMessage: errMsg,
 	}
 	_ = WriteStatusConfigMap(ctx, a.K8sClient, a.Config.CRNamespace, a.Config.CRName, a.Config.GatewayName, status)
+}
+
+// event emits a K8s event on the cached IgnitionSync CR. No-op if recorder or
+// isyncRef is nil (e.g. during tests or when recorder setup failed).
+func (a *Agent) event(eventType, reason, msgFmt string, args ...any) {
+	if a.Recorder == nil || a.isyncRef == nil {
+		return
+	}
+	a.Recorder.Eventf(a.isyncRef, eventType, reason, msgFmt, args...)
+}
+
+// fetchISyncRef fetches the IgnitionSync CR once and caches it as event target.
+func (a *Agent) fetchISyncRef(ctx context.Context) {
+	var isync syncv1alpha1.IgnitionSync
+	key := client.ObjectKey{Namespace: a.Config.CRNamespace, Name: a.Config.CRName}
+	if err := a.K8sClient.Get(ctx, key, &isync); err != nil {
+		logf.FromContext(ctx).Info("could not fetch IgnitionSync for events (non-fatal)", "error", err)
+		return
+	}
+	a.isyncRef = &isync
 }
 
 // resolveFileAuth builds a go-git transport.AuthMethod from mounted credential files.
