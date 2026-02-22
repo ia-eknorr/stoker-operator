@@ -225,6 +225,26 @@ func injectSidecar(pod *corev1.Pod, isync *syncv1alpha1.IgnitionSync) {
 			PeriodSeconds:    2,
 			FailureThreshold: 30,
 		},
+		LivenessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/healthz",
+					Port: intstr.FromInt32(8082),
+				},
+			},
+			PeriodSeconds:    10,
+			FailureThreshold: 3,
+		},
+		ReadinessProbe: &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path: "/readyz",
+					Port: intstr.FromInt32(8082),
+				},
+			},
+			PeriodSeconds:    5,
+			FailureThreshold: 3,
+		},
 		VolumeMounts: []corev1.VolumeMount{
 			{Name: volumeSyncRepo, MountPath: mountRepo},
 			{Name: volumeGitCredentials, MountPath: mountGitCredentials, ReadOnly: true},
