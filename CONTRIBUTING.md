@@ -20,6 +20,36 @@ make setup    # configures git hooks
 
 `make setup` points git to `.githooks/`, which includes a **pre-commit hook** that runs golangci-lint on staged Go files.
 
+## Devcontainer
+
+The fastest way to get a working environment is the included devcontainer, which ships with all prerequisites pre-installed (Go, kubectl, kind, helm, controller-gen, golangci-lint, etc.).
+
+### Opening the devcontainer
+
+1. Install the **Dev Containers** extension in VS Code.
+2. Open the repo and run **Dev Containers: Reopen in Container** from the command palette.
+3. The `postCreateCommand` runs automatically — it downloads Go modules, configures git hooks, and installs Docusaurus dependencies.
+
+### Shell customization (dotfiles)
+
+The devcontainer ships with a vanilla shell. To bring your own config (oh-my-zsh, p10k, starship, etc.), configure a **dotfiles repository** in VS Code:
+
+```
+Settings → Dev Containers → Dotfiles: Repository
+```
+
+VS Code will clone and install your dotfiles into each new container. See the [VS Code docs](https://code.visualstudio.com/docs/devcontainers/containers#_personalizing-with-dotfile-repositories) for details.
+
+### Creating a kind cluster
+
+The devcontainer has Docker socket access, so kind works out of the box:
+
+```bash
+kind create cluster --name dev
+```
+
+This creates a cluster you can immediately use with `kubectl`, `make run`, or `make functional-test`.
+
 ## Development Loop
 
 ```bash

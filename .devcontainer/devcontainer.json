@@ -1,0 +1,41 @@
+{
+  "name": "Stoker Operator",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" }
+  },
+  // Creates ~/.claude on host if missing so the bind mount never fails.
+  // Remove the initializeCommand and the ~/.claude mount below if you don't use Claude Code.
+  "initializeCommand": "mkdir -p ${HOME}/.claude",
+  "mounts": [
+    "source=stoker-gomodcache,target=/home/vscode/go/pkg/mod,type=volume",
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
+  ],
+  "forwardPorts": [8081, 9443, 9444, 3000],
+  "portsAttributes": {
+    "8081":  { "label": "Health probe" },
+    "9443":  { "label": "Admission webhook" },
+    "9444":  { "label": "Webhook receiver" },
+    "3000":  { "label": "Docusaurus" }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "ms-kubernetes-tools.vscode-kubernetes-tools",
+        "redhat.vscode-yaml",
+        "Tim-Koehler.helm-intellisense"
+      ],
+      "settings": {
+        "go.lintTool": "golangci-lint",
+        "go.toolsManagement.autoUpdate": false
+      }
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "remoteUser": "vscode"
+}
