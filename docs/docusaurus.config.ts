@@ -88,6 +88,10 @@ const config: Config = {
               label: "Helm Chart",
               href: "https://github.com/ia-eknorr/stoker-operator/tree/main/charts/stoker-operator",
             },
+            {
+              label: "Ignition Helm Chart",
+              href: "https://charts.ia.io",
+            },
           ],
         },
       ],
