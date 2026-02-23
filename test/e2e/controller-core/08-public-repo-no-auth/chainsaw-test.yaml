@@ -18,8 +18,18 @@ spec:
             env:
               - name: NAMESPACE
                 value: ($namespace)
+            timeout: 90s
             content: |
               kubectl wait --for=condition=Ready pod/test-git-server -n $NAMESPACE --timeout=60s
+              # Wait for Service DNS + endpoint to propagate
+              for i in $(seq 1 15); do
+                if git ls-remote git://test-git-server.$NAMESPACE.svc.cluster.local:9418/test-repo.git HEAD >/dev/null 2>&1; then
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "git server not reachable via Service DNS"
+              exit 1
 
     - name: Create Stoker CR with no git auth
       try:
