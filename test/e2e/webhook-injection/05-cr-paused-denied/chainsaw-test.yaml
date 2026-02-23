@@ -21,7 +21,7 @@ spec:
               spec:
                 paused: true
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                 gateway:
                   port: 8088

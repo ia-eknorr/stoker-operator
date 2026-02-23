@@ -20,7 +20,7 @@ spec:
                 name: test-multi-a
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                 gateway:
                   port: 8088
@@ -36,7 +36,7 @@ spec:
                 name: test-multi-b
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                 gateway:
                   port: 8088

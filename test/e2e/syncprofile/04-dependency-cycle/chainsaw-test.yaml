@@ -35,15 +35,17 @@ spec:
                   - profileName: profile-b
     - name: assert cycle detected on profile-a
       try:
-        - assert:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
             timeout: 30s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: SyncProfile
-              metadata:
-                name: profile-a
-              status:
-                conditions:
-                  - type: Accepted
-                    status: "False"
-                    reason: CycleDetected
+            content: |
+              for i in $(seq 1 15); do
+                STATUS=$(kubectl get syncprofile profile-a -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="Accepted")].status}' 2>/dev/null)
+                REASON=$(kubectl get syncprofile profile-a -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="Accepted")].reason}' 2>/dev/null)
+                [ "$STATUS" = "False" ] && [ "$REASON" = "CycleDetected" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for Accepted=False/CycleDetected, got: status=$STATUS reason=$REASON"
+              exit 1

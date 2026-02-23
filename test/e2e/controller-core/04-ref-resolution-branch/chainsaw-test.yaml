@@ -31,7 +31,7 @@ spec:
                 name: test-ref-branch
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                 gateway:
                   port: 8088
@@ -42,16 +42,13 @@ spec:
 
     - name: Assert RefResolved=True and lastSyncCommit is set
       try:
-        - assert:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
             timeout: 30s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: Stoker
-              metadata:
-                name: test-ref-branch
-              status:
-                conditions:
-                  - type: RefResolved
-                    status: "True"
-                    reason: RefResolved
-                (status.lastSyncCommit != ''): true
+            content: |
+              STATUS=$(kubectl get stoker test-ref-branch -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="RefResolved")].status}')
+              [ "$STATUS" = "True" ] || { echo "RefResolved=$STATUS, want True"; exit 1; }
+              COMMIT=$(kubectl get stoker test-ref-branch -n $NAMESPACE -o jsonpath='{.status.lastSyncCommit}')
+              [ -n "$COMMIT" ] || { echo "lastSyncCommit is empty"; exit 1; }

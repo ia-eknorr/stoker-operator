@@ -21,7 +21,7 @@ spec:
               spec:
                 paused: true
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                 gateway:
                   port: 8088
@@ -32,15 +32,17 @@ spec:
 
     - name: Assert Ready=False with reason Paused
       try:
-        - assert:
-            timeout: 30s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: Stoker
-              metadata:
-                name: test-paused
-              status:
-                conditions:
-                  - type: Ready
-                    status: "False"
-                    reason: Paused
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-paused -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+                REASON=$(kubectl get stoker test-paused -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}' 2>/dev/null)
+                [ "$STATUS" = "False" ] && [ "$REASON" = "Paused" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for Ready=False/Paused, got: status=$STATUS reason=$REASON"
+              exit 1

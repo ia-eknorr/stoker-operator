@@ -31,7 +31,7 @@ spec:
                 name: test-mcm
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                 gateway:
                   port: 8088
@@ -39,6 +39,22 @@ spec:
                   apiKeySecretRef:
                     name: ignition-api-key
                     key: apiKey
+
+    - name: Wait for RefResolved
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-mcm -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="RefResolved")].status}' 2>/dev/null)
+                [ "$STATUS" = "True" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for RefResolved=True, got: $STATUS"
+              exit 1
 
     - name: Assert metadata ConfigMap has correct data
       try:
@@ -55,4 +71,12 @@ spec:
                 paused: "false"
                 gatewayPort: "8088"
                 gatewayTLS: "false"
-                (contains(data.gitURL, 'test-git-server')): true
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 10s
+            content: |
+              URL=$(kubectl get configmap stoker-metadata-test-mcm -n $NAMESPACE -o jsonpath='{.data.gitURL}')
+              echo "gitURL: $URL"
+              echo "$URL" | grep -q "test-git-server" || { echo "FAIL: gitURL does not contain test-git-server"; exit 1; }

@@ -31,7 +31,7 @@ spec:
                 name: test-wr
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                 polling:
                   enabled: false
@@ -44,17 +44,19 @@ spec:
 
     - name: Wait for initial ref resolution
       try:
-        - assert:
-            timeout: 30s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: Stoker
-              metadata:
-                name: test-wr
-              status:
-                conditions:
-                  - type: RefResolved
-                    status: "True"
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-wr -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="RefResolved")].status}' 2>/dev/null)
+                [ "$STATUS" = "True" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for RefResolved=True, got: $STATUS"
+              exit 1
 
     - name: Send invalid payload and assert HTTP 400
       try:
@@ -66,13 +68,15 @@ spec:
             content: |
               POD_IP=$(kubectl get pod -n stoker-system -l app.kubernetes.io/name=stoker-operator \
                 -o jsonpath='{.items[0].status.podIP}')
-              STATUS=$(kubectl run curl-$RANDOM --rm -i --restart=Never \
+              # Capture raw output; kubectl run --rm appends "pod deleted" to stdout
+              RAW=$(kubectl run curl-$RANDOM --rm -i --restart=Never \
                 --image=curlimages/curl:latest \
                 -n $NAMESPACE --timeout=20s -- \
                 curl -s -o /dev/null -w '%{http_code}' -X POST \
                 -H "Content-Type: application/json" \
                 -d '{"foo":"bar"}' \
-                "http://${POD_IP}:9444/webhook/${NAMESPACE}/test-wr")
+                "http://${POD_IP}:9444/webhook/${NAMESPACE}/test-wr" 2>&1)
+              STATUS=$(echo "$RAW" | grep -oE '^[0-9]{3}')
               echo "HTTP status: $STATUS"
               [ "$STATUS" = "400" ]
 

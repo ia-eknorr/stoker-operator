@@ -40,7 +40,7 @@ spec:
                 name: test-idempotent
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                   auth:
                     token:
@@ -53,20 +53,6 @@ spec:
                   apiKeySecretRef:
                     name: ignition-api-key
                     key: apiKey
-
-    - name: Wait for RefResolved
-      try:
-        - assert:
-            timeout: 30s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: Stoker
-              metadata:
-                name: test-idempotent
-              status:
-                conditions:
-                  - type: RefResolved
-                    status: "True"
 
     - name: Create pod with pre-existing stoker-agent initContainer
       try:

@@ -87,12 +87,19 @@ test-ci: setup-envtest ## Run tests without code generation (for CI, where lint 
 ##@ E2E Tests
 
 CHAINSAW ?= $(LOCALBIN)/chainsaw
-CHAINSAW_VERSION ?= v0.2.12
+CHAINSAW_VERSION ?= v0.2.14
 
 .PHONY: chainsaw
 chainsaw: $(CHAINSAW)
 $(CHAINSAW): $(LOCALBIN)
-	$(call go-install-tool,$(CHAINSAW),github.com/kyverno/chainsaw,$(CHAINSAW_VERSION))
+	@[ -f "$(CHAINSAW)" ] || { \
+	set -e; \
+	OS=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
+	ARCH=$$(uname -m); case $$ARCH in x86_64) ARCH=amd64;; aarch64) ARCH=arm64;; esac; \
+	URL="https://github.com/kyverno/chainsaw/releases/download/$(CHAINSAW_VERSION)/chainsaw_$${OS}_$${ARCH}.tar.gz"; \
+	echo "Downloading chainsaw $(CHAINSAW_VERSION) from $$URL"; \
+	curl -sSL "$$URL" | tar xz -C "$(LOCALBIN)" chainsaw; \
+	}
 
 .PHONY: e2e-setup
 e2e-setup: ## Set up kind cluster and deploy operator for e2e tests.

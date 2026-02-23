@@ -31,7 +31,7 @@ spec:
                 name: test-stoker
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                 gateway:
                   port: 8088
@@ -62,7 +62,6 @@ spec:
                 annotations:
                   stoker.io/cr-name: test-stoker
                   stoker.io/sync-profile: gateway-profile
-                  stoker.io/inject: "true"
               spec:
                 containers:
                   - name: ignition
@@ -77,7 +76,6 @@ spec:
                 annotations:
                   stoker.io/cr-name: test-stoker
                   stoker.io/sync-profile: gateway-profile
-                  stoker.io/inject: "true"
               spec:
                 containers:
                   - name: ignition

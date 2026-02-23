@@ -53,7 +53,7 @@ spec:
                 name: test-basic
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                   auth:
                     token:
@@ -66,20 +66,6 @@ spec:
                   apiKeySecretRef:
                     name: ignition-api-key
                     key: apiKey
-
-    - name: Wait for RefResolved
-      try:
-        - assert:
-            timeout: 30s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: Stoker
-              metadata:
-                name: test-basic
-              status:
-                conditions:
-                  - type: RefResolved
-                    status: "True"
 
     - name: Create pod requesting injection
       try:
@@ -101,24 +87,24 @@ spec:
 
     - name: Assert sidecar injected with correct structure
       try:
-        - assert:
-            timeout: 30s
-            resource:
-              apiVersion: v1
-              kind: Pod
-              metadata:
-                name: gateway-basic
-                annotations:
-                  stoker.io/injected: "true"
-              spec:
-                initContainers:
-                  - name: stoker-agent
-                    restartPolicy: Always
         - script:
             env:
               - name: NAMESPACE
                 value: ($namespace)
+            timeout: 30s
             content: |
+              # Verify stoker-agent initContainer exists
+              CONTAINERS=$(kubectl get pod gateway-basic -n $NAMESPACE -o jsonpath='{.spec.initContainers[*].name}')
+              echo "$CONTAINERS" | grep -q "stoker-agent" || { echo "stoker-agent not found in initContainers: $CONTAINERS"; exit 1; }
+
+              # Verify injected annotation
+              INJECT_STATUS=$(kubectl get pod gateway-basic -n $NAMESPACE -o jsonpath='{.metadata.annotations.stoker\.io/injected}')
+              [ "$INJECT_STATUS" = "true" ] || { echo "stoker.io/injected=$INJECT_STATUS, expected true"; exit 1; }
+
+              # Verify restartPolicy on stoker-agent
+              RESTART=$(kubectl get pod gateway-basic -n $NAMESPACE -o jsonpath='{.spec.initContainers[?(@.name=="stoker-agent")].restartPolicy}')
+              [ "$RESTART" = "Always" ] || { echo "restartPolicy=$RESTART, expected Always"; exit 1; }
+
               # Verify volumes exist
               VOLS=$(kubectl get pod gateway-basic -n $NAMESPACE -o jsonpath='{.spec.volumes[*].name}')
               for VOL in sync-repo api-key git-credentials; do

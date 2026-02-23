@@ -32,7 +32,7 @@ spec:
                 name: test-mg
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                 gateway:
                   apiKeySecretRef:
@@ -40,17 +40,19 @@ spec:
                     key: apiKey
     - name: wait for ref resolved
       try:
-        - assert:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
             timeout: 60s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: Stoker
-              metadata:
-                name: test-mg
-              status:
-                conditions:
-                  - type: RefResolved
-                    status: "True"
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-mg -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="RefResolved")].status}' 2>/dev/null)
+                [ "$STATUS" = "True" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for RefResolved=True, got: $STATUS"
+              exit 1
     - name: create three gateway pods
       try:
         - apply:
@@ -99,30 +101,37 @@ spec:
               kubectl wait --for=condition=Ready pod/gateway-mg-1 pod/gateway-mg-2 pod/gateway-mg-3 -n $NAMESPACE --timeout=60s
     - name: assert all three gateways discovered
       try:
-        - assert:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
             timeout: 60s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: Stoker
-              metadata:
-                name: test-mg
-              status:
-                discoveredGateways:
-                  - podName: gateway-mg-1
-                  - podName: gateway-mg-2
-                  - podName: gateway-mg-3
+            content: |
+              for i in $(seq 1 30); do
+                GW_JSON=$(kubectl get stoker test-mg -n $NAMESPACE -o jsonpath='{.status.discoveredGateways[*].podName}' 2>/dev/null)
+                COUNT=$(echo "$GW_JSON" | wc -w | tr -d ' ')
+                [ "$COUNT" -ge 3 ] && break
+                sleep 2
+              done
+              [ "$COUNT" -ge 3 ] || { echo "Expected 3 gateways, found: $COUNT ($GW_JSON)"; exit 1; }
+              for POD in gateway-mg-1 gateway-mg-2 gateway-mg-3; do
+                echo "$GW_JSON" | grep -q "$POD" || { echo "Missing gateway pod: $POD in: $GW_JSON"; exit 1; }
+              done
+              echo "All 3 gateways discovered: $GW_JSON"
     - name: assert sync in progress with count
       try:
-        - assert:
-            timeout: 30s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: Stoker
-              metadata:
-                name: test-mg
-              status:
-                conditions:
-                  - type: AllGatewaysSynced
-                    status: "False"
-                    reason: SyncInProgress
-                    message: "0/3 gateways synced"
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-mg -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="AllGatewaysSynced")].status}' 2>/dev/null)
+                REASON=$(kubectl get stoker test-mg -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="AllGatewaysSynced")].reason}' 2>/dev/null)
+                MSG=$(kubectl get stoker test-mg -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="AllGatewaysSynced")].message}' 2>/dev/null)
+                [ "$STATUS" = "False" ] && [ "$REASON" = "SyncInProgress" ] && [ "$MSG" = "0/3 gateways synced" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for AllGatewaysSynced=False/SyncInProgress/0/3, got: status=$STATUS reason=$REASON message=$MSG"
+              exit 1

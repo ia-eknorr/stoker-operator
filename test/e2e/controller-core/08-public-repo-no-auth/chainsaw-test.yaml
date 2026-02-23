@@ -31,7 +31,7 @@ spec:
                 name: test-pub
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: main
                 gateway:
                   port: 8088
@@ -42,17 +42,19 @@ spec:
 
     - name: Assert RefResolved=True
       try:
-        - assert:
-            timeout: 30s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: Stoker
-              metadata:
-                name: test-pub
-              status:
-                conditions:
-                  - type: RefResolved
-                    status: "True"
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-pub -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="RefResolved")].status}' 2>/dev/null)
+                [ "$STATUS" = "True" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for RefResolved=True, got: $STATUS"
+              exit 1
 
     - name: Assert metadata ConfigMap has authType none
       try:

@@ -31,7 +31,7 @@ spec:
                 name: test-wtr
               spec:
                 git:
-                  repo: git://test-git-server:9418/test-repo.git
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
                   ref: v1.0.0
                 polling:
                   enabled: false
@@ -44,18 +44,20 @@ spec:
 
     - name: Wait for initial ref resolution
       try:
-        - assert:
-            timeout: 30s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: Stoker
-              metadata:
-                name: test-wtr
-              status:
-                lastSyncRef: v1.0.0
-                conditions:
-                  - type: RefResolved
-                    status: "True"
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-wtr -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="RefResolved")].status}' 2>/dev/null)
+                REF=$(kubectl get stoker test-wtr -n $NAMESPACE -o jsonpath='{.status.lastSyncRef}' 2>/dev/null)
+                [ "$STATUS" = "True" ] && [ "$REF" = "v1.0.0" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for RefResolved=True and lastSyncRef=v1.0.0, got: status=$STATUS ref=$REF"
+              exit 1
 
     - name: Annotate CR with requested-ref v2.0.0
       try:

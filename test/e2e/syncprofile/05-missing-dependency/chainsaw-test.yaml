@@ -21,15 +21,17 @@ spec:
                   - profileName: nonexistent-profile
     - name: assert dependency not found
       try:
-        - assert:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
             timeout: 30s
-            resource:
-              apiVersion: stoker.io/v1alpha1
-              kind: SyncProfile
-              metadata:
-                name: depends-on-ghost
-              status:
-                conditions:
-                  - type: Accepted
-                    status: "False"
-                    reason: DependencyNotFound
+            content: |
+              for i in $(seq 1 15); do
+                STATUS=$(kubectl get syncprofile depends-on-ghost -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="Accepted")].status}' 2>/dev/null)
+                REASON=$(kubectl get syncprofile depends-on-ghost -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="Accepted")].reason}' 2>/dev/null)
+                [ "$STATUS" = "False" ] && [ "$REASON" = "DependencyNotFound" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for Accepted=False/DependencyNotFound, got: status=$STATUS reason=$REASON"
+              exit 1
