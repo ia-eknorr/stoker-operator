@@ -68,32 +68,18 @@ kubectl create secret generic gw-api-key -n quickstart \
   --from-literal=apiKey="ignition-api-key:CYCSdRgW6MHYkeIXhH-BMqo1oaqfTdFi8tXvHJeCKmY"
 ```
 
+:::note
+This API key belongs to the public example repository and carries no security risk. The example repository is provided solely for this quickstart — do not use it as a base template for production projects. In your own deployments, generate unique API tokens for each gateway.
+:::
+
 No git credentials are needed since we're using a public repository.
 
 ## 5. Create a Stoker CR
 
 The Stoker CR defines the git repository to sync from. We set `gateway.port` and `gateway.tls` to match the default Ignition Helm chart (HTTP on 8088):
 
-```yaml
-apiVersion: stoker.io/v1alpha1
-kind: Stoker
-metadata:
-  name: quickstart
-  namespace: quickstart
-spec:
-  git:
-    repo: "https://github.com/ia-eknorr/test-ignition-project.git"
-    ref: "main"
-  gateway:
-    port: 8088
-    tls: false
-    apiKeySecretRef:
-      name: gw-api-key
-      key: apiKey
-```
-
 ```bash
-kubectl apply -f - <<'EOF'
+cat <<'EOF' | kubectl apply -f -
 apiVersion: stoker.io/v1alpha1
 kind: Stoker
 metadata:
@@ -124,26 +110,8 @@ The `REF` column should show `main` and `READY` should be `True`.
 
 The SyncProfile defines which files to sync and where to put them. The example repository ([ia-eknorr/test-ignition-project](https://github.com/ia-eknorr/test-ignition-project)) has per-gateway directories under `services/`, so we point the mappings at `services/ignition-blue/`:
 
-```yaml
-apiVersion: stoker.io/v1alpha1
-kind: SyncProfile
-metadata:
-  name: standard
-  namespace: quickstart
-spec:
-  mappings:
-    - source: "services/ignition-blue/projects/"
-      destination: "projects/"
-      type: dir
-      required: true
-    - source: "services/ignition-blue/config/"
-      destination: "config/"
-      type: dir
-  syncPeriod: 30
-```
-
 ```bash
-kubectl apply -f - <<'EOF'
+cat <<'EOF' | kubectl apply -f -
 apiVersion: stoker.io/v1alpha1
 kind: SyncProfile
 metadata:
@@ -225,7 +193,7 @@ The key annotations:
 | `stoker.io/cr-name` | `"quickstart"` | Links to the Stoker CR |
 | `stoker.io/sync-profile` | `"standard"` | Links to the SyncProfile |
 
-:::info Why install the gateway last?
+:::tip Why install the gateway last?
 The Stoker webhook injects the agent sidecar when a pod is created. By installing the operator and CRs first, the webhook is ready to inject on the gateway's first pod creation — no restart needed.
 :::
 
@@ -251,6 +219,14 @@ kubectl get pod -n quickstart -o 'custom-columns=NAME:.metadata.name,SIDECARS:.s
 
 You should see `stoker-agent` listed as an init container (native sidecar).
 
+### Check events
+
+Look at the namespace events to see the injection and sync activity:
+
+```bash
+kubectl get events -n quickstart --sort-by=.lastTimestamp | tail -15
+```
+
 ### Check the Stoker CR status
 
 ```bash
@@ -264,6 +240,19 @@ NAME         REF    SYNCED   GATEWAYS             READY   AGE
 quickstart   main   True     1/1 gateways synced  True    5m
 ```
 
+### Describe the Stoker CR
+
+For detailed status including conditions and discovered gateways:
+
+```bash
+kubectl describe stoker quickstart -n quickstart
+```
+
+Look for:
+
+- **Conditions:** `RefResolved=True` and `GatewaysReady=True`
+- **Gateway Statuses:** should list the gateway pod with its sync status and commit hash
+
 ### Read the agent logs
 
 ```bash
@@ -275,6 +264,16 @@ Look for:
 - `clone complete` — the repo was cloned successfully
 - `files synced` with `added` and `projects` — files were delivered to the gateway
 - `scan API success` — Ignition acknowledged the project reload
+
+### Inspect the status ConfigMap
+
+The agent writes detailed sync status to a ConfigMap:
+
+```bash
+kubectl get cm stoker-status-quickstart -n quickstart -o jsonpath='{.data}' | python3 -m json.tool
+```
+
+This shows the synced commit, file counts, project names, and any error messages per gateway.
 
 ## 10. Explore
 
@@ -316,6 +315,10 @@ kind delete cluster --name stoker-quickstart
 
 ## Next steps
 
+- **Multiple gateways:** Instead of hardcoding paths per gateway, use `{{.GatewayName}}` in your SyncProfile source paths and the `stoker.io/gateway-name` annotation on each pod. One SyncProfile then serves any number of gateways.
+- **Deployment mode overlays:** Use `spec.deploymentMode` in your SyncProfile to apply environment-specific config.
+- **Webhook-driven sync:** Configure `POST /webhook/{namespace}/{crName}` to trigger syncs on git push events instead of polling.
+- **Private repos:** Add `spec.git.auth` with a token or SSH key secret reference to sync from private repositories.
 - **[Stoker CR Reference](./configuration/stoker-cr.md)** — full spec reference including git auth, polling, and agent configuration
 - **[SyncProfile Reference](./configuration/sync-profile.md)** — file mappings, deployment mode overlays, and template variables
 - **[Helm Values](./configuration/helm-values.md)** — all configurable values for the operator chart
