@@ -16,8 +16,9 @@ const (
 	// AnnotationGatewayName overrides gateway identity (defaults to pod label app.kubernetes.io/name).
 	AnnotationGatewayName = AnnotationPrefix + "/gateway-name"
 
-	// AnnotationSyncProfile names the SyncProfile to use for this gateway pod.
-	AnnotationSyncProfile = AnnotationPrefix + "/sync-profile"
+	// AnnotationProfile names the sync profile for this gateway pod.
+	// If unset, the "default" profile is used.
+	AnnotationProfile = AnnotationPrefix + "/profile"
 
 	// AnnotationRefOverride overrides the git ref for this pod only.
 	// Read by the agent sidecar, NOT the controller. The agent resolves
