@@ -215,7 +215,8 @@ func TestInject_AlreadyInjected(t *testing.T) {
 }
 
 func TestInject_AutoDeriveCRName_SingleCR(t *testing.T) {
-	injector := newInjector(testGatewaySync())
+	gs := testGatewaySync()
+	injector := newInjector(gs)
 
 	pod := basePod(map[string]string{
 		stokertypes.AnnotationInject: "true",
@@ -228,6 +229,21 @@ func TestInject_AutoDeriveCRName_SingleCR(t *testing.T) {
 	}
 	if resp.Patches == nil {
 		t.Fatal("expected patches for auto-derived injection")
+	}
+
+	// Verify cr-name annotation is written back to the pod via patch
+	found := false
+	for _, patch := range resp.Patches {
+		if patch.Path == "/metadata/annotations/stoker.io~1cr-name" {
+			if patch.Value != gs.Name {
+				t.Fatalf("expected cr-name patch value %q, got %v", gs.Name, patch.Value)
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected cr-name annotation to be written back to pod via patch")
 	}
 }
 
