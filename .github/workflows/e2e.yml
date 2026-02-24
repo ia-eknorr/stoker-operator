@@ -1,0 +1,110 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'LICENSE'
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: Chainsaw E2E (${{ matrix.group }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: core
+            suites: controller-core syncprofile webhook-receiver
+          - group: integration
+            suites: gateway-discovery webhook-injection
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, '/test-e2e')
+      )
+    steps:
+      - name: React to comment
+        if: github.event_name == 'issue_comment'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket'
+            });
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'issue_comment' && format('refs/pull/{0}/merge', github.event.issue.number) || '' }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install kind
+        uses: helm/kind-action@v1
+        with:
+          install_only: true
+
+      - name: Cache kind node image
+        id: kind-image-cache
+        uses: actions/cache@v4
+        with:
+          path: _kind-image.tar
+          key: kind-node-image-${{ hashFiles('.github/workflows/e2e.yml') }}
+
+      - name: Load cached kind image
+        if: steps.kind-image-cache.outputs.cache-hit == 'true'
+        run: docker load -i _kind-image.tar
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Install Chainsaw
+        run: |
+          curl -sSL https://github.com/kyverno/chainsaw/releases/download/v0.2.14/chainsaw_linux_amd64.tar.gz | tar xz -C /usr/local/bin chainsaw
+
+      - name: Setup cluster and operator
+        run: test/e2e/setup.sh
+
+      - name: Save kind image to cache
+        if: steps.kind-image-cache.outputs.cache-hit != 'true'
+        run: docker save -o _kind-image.tar $(docker images --filter=reference='kindest/node' -q)
+
+      - name: Run Chainsaw tests
+        run: |
+          args=""
+          for suite in ${{ matrix.suites }}; do
+            args="$args --test-dir test/e2e/$suite"
+          done
+          chainsaw test $args --config test/e2e/.chainsaw.yaml
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          echo "=== Controller logs ==="
+          kubectl logs -n stoker-system -l app.kubernetes.io/name=stoker-operator --tail=200 || true
+          echo "=== Events ==="
+          kubectl get events -A --sort-by='.lastTimestamp' | tail -100 || true
+          echo "=== Stoker CRs ==="
+          kubectl get stokers -A -o yaml || true
+          echo "=== SyncProfiles ==="
+          kubectl get syncprofiles -A -o yaml || true
+          echo "=== Pods ==="
+          kubectl get pods -A -o wide || true

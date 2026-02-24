@@ -1,0 +1,141 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: public-repo-no-git-creds
+spec:
+  description: "Regression test: verify no git-credentials volume or env vars when auth is nil (public repo)"
+  steps:
+    - name: Deploy git server and api-key secret
+      try:
+        - apply:
+            file: ../../fixtures/git-server.yaml
+        - apply:
+            file: ../../fixtures/api-key-secret.yaml
+
+    - name: Wait for git server ready
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 90s
+            content: |
+              kubectl wait --for=condition=Ready pod/test-git-server -n $NAMESPACE --timeout=60s
+              # Wait for Service DNS + endpoint to propagate
+              for i in $(seq 1 15); do
+                if git ls-remote git://test-git-server.$NAMESPACE.svc.cluster.local:9418/test-repo.git HEAD >/dev/null 2>&1; then
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "git server not reachable via Service DNS"
+              exit 1
+
+    - name: Create Stoker CR with no auth (public repo)
+      try:
+        - apply:
+            resource:
+              apiVersion: stoker.io/v1alpha1
+              kind: Stoker
+              metadata:
+                name: test-public
+              spec:
+                git:
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
+                  ref: main
+                gateway:
+                  port: 8088
+                  tls: false
+                  apiKeySecretRef:
+                    name: ignition-api-key
+                    key: apiKey
+
+    - name: Wait for RefResolved
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-public -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="RefResolved")].status}' 2>/dev/null)
+                [ "$STATUS" = "True" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for RefResolved=True"
+              exit 1
+
+    - name: Create pod requesting injection
+      try:
+        - apply:
+            resource:
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: gateway-public
+                annotations:
+                  stoker.io/inject: "true"
+                  stoker.io/cr-name: test-public
+              spec:
+                containers:
+                  - name: gateway
+                    image: busybox:latest
+                    command: ["sleep", "3600"]
+
+    - name: Assert sidecar injected with no git-credentials artifacts
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 30s
+            content: |
+              POD="gateway-public"
+
+              # Verify stoker-agent initContainer exists
+              CONTAINERS=$(kubectl get pod $POD -n $NAMESPACE -o jsonpath='{.spec.initContainers[*].name}')
+              echo "$CONTAINERS" | grep -q "stoker-agent" || { echo "stoker-agent not found in initContainers: $CONTAINERS"; exit 1; }
+
+              # Verify injected annotation
+              INJECT_STATUS=$(kubectl get pod $POD -n $NAMESPACE -o jsonpath='{.metadata.annotations.stoker\.io/injected}')
+              [ "$INJECT_STATUS" = "true" ] || { echo "stoker.io/injected=$INJECT_STATUS, expected true"; exit 1; }
+
+              # Verify restartPolicy on stoker-agent
+              RESTART=$(kubectl get pod $POD -n $NAMESPACE -o jsonpath='{.spec.initContainers[?(@.name=="stoker-agent")].restartPolicy}')
+              [ "$RESTART" = "Always" ] || { echo "restartPolicy=$RESTART, expected Always"; exit 1; }
+
+              # Check sync-repo volume exists
+              VOLS=$(kubectl get pod $POD -n $NAMESPACE -o jsonpath='{.spec.volumes[*].name}')
+              if ! echo "$VOLS" | grep -q "sync-repo"; then
+                echo "FAIL: sync-repo volume not found"
+                exit 1
+              fi
+
+              # Check api-key volume exists
+              if ! echo "$VOLS" | grep -q "api-key"; then
+                echo "FAIL: api-key volume not found"
+                exit 1
+              fi
+
+              # Check no git-credentials volume
+              if echo "$VOLS" | grep -q "git-credentials"; then
+                echo "FAIL: git-credentials volume found on public repo pod"
+                exit 1
+              fi
+
+              # Check no GIT_TOKEN_FILE env var
+              ENVS=$(kubectl get pod $POD -n $NAMESPACE \
+                -o jsonpath='{.spec.initContainers[?(@.name=="stoker-agent")].env[*].name}')
+              if echo "$ENVS" | grep -q "GIT_TOKEN_FILE"; then
+                echo "FAIL: GIT_TOKEN_FILE env found on public repo pod"
+                exit 1
+              fi
+
+              # Check no GIT_SSH_KEY_FILE env var
+              if echo "$ENVS" | grep -q "GIT_SSH_KEY_FILE"; then
+                echo "FAIL: GIT_SSH_KEY_FILE env found on public repo pod"
+                exit 1
+              fi
+
+              echo "PASS: no git-credentials artifacts found on public repo pod"

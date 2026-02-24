@@ -1,0 +1,112 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: gw-missing-sidecar-detection
+spec:
+  description: >
+    A pod with stoker.io/inject=true but no stoker-agent initContainer should
+    be reported with syncStatus=MissingSidecar and condition SidecarInjected=False.
+    The pod is created without the inject annotation (to avoid webhook injection),
+    then patched to add it after reaching Running state.
+  steps:
+    - name: deploy git server and api-key secret
+      try:
+        - apply:
+            file: ../../fixtures/git-server.yaml
+        - apply:
+            file: ../../fixtures/api-key-secret.yaml
+    - name: wait for git server ready
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            content: |
+              kubectl wait --for=condition=Ready pod/test-git-server -n $NAMESPACE --timeout=60s
+    - name: create stoker cr
+      try:
+        - apply:
+            resource:
+              apiVersion: stoker.io/v1alpha1
+              kind: Stoker
+              metadata:
+                name: test-msd
+              spec:
+                git:
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
+                  ref: main
+                gateway:
+                  apiKeySecretRef:
+                    name: ignition-api-key
+                    key: apiKey
+    - name: wait for ref resolved
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-msd -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="RefResolved")].status}' 2>/dev/null)
+                [ "$STATUS" = "True" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for RefResolved=True, got: $STATUS"
+              exit 1
+    - name: create pod without inject annotation
+      try:
+        - apply:
+            resource:
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: gateway-msd
+                annotations:
+                  stoker.io/cr-name: test-msd
+              spec:
+                containers:
+                  - name: pause
+                    image: registry.k8s.io/pause:3.9
+    - name: wait for pod running then patch inject annotation
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            content: |
+              kubectl wait --for=condition=Ready pod/gateway-msd -n $NAMESPACE --timeout=60s
+              kubectl annotate pod gateway-msd stoker.io/inject=true -n $NAMESPACE
+    - name: assert missing sidecar detected
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                POD=$(kubectl get stoker test-msd -n $NAMESPACE -o jsonpath='{.status.discoveredGateways[0].podName}' 2>/dev/null)
+                SYNC=$(kubectl get stoker test-msd -n $NAMESPACE -o jsonpath='{.status.discoveredGateways[0].syncStatus}' 2>/dev/null)
+                [ "$POD" = "gateway-msd" ] && [ "$SYNC" = "MissingSidecar" ] && break
+                sleep 2
+              done
+              [ "$POD" = "gateway-msd" ] || { echo "Expected podName=gateway-msd, got: $POD"; exit 1; }
+              [ "$SYNC" = "MissingSidecar" ] || { echo "Expected syncStatus=MissingSidecar, got: $SYNC"; exit 1; }
+              echo "Missing sidecar correctly detected: pod=$POD syncStatus=$SYNC"
+    - name: assert sidecar injected condition false
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-msd -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="SidecarInjected")].status}' 2>/dev/null)
+                REASON=$(kubectl get stoker test-msd -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="SidecarInjected")].reason}' 2>/dev/null)
+                [ "$STATUS" = "False" ] && [ "$REASON" = "SidecarMissing" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for SidecarInjected=False/SidecarMissing, got: status=$STATUS reason=$REASON"
+              exit 1

@@ -1,0 +1,108 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: gw-annotated-pod-running
+spec:
+  description: >
+    A Running pod with stoker.io/cr-name annotation should appear in
+    status.discoveredGateways and the AllGatewaysSynced condition should
+    reflect one gateway found.
+  steps:
+    - name: deploy git server and api-key secret
+      try:
+        - apply:
+            file: ../../fixtures/git-server.yaml
+        - apply:
+            file: ../../fixtures/api-key-secret.yaml
+    - name: wait for git server ready
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            content: |
+              kubectl wait --for=condition=Ready pod/test-git-server -n $NAMESPACE --timeout=60s
+    - name: create stoker cr
+      try:
+        - apply:
+            resource:
+              apiVersion: stoker.io/v1alpha1
+              kind: Stoker
+              metadata:
+                name: test-apr
+              spec:
+                git:
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
+                  ref: main
+                gateway:
+                  apiKeySecretRef:
+                    name: ignition-api-key
+                    key: apiKey
+    - name: wait for ref resolved
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-apr -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="RefResolved")].status}' 2>/dev/null)
+                [ "$STATUS" = "True" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for RefResolved=True, got: $STATUS"
+              exit 1
+    - name: create gateway pod
+      try:
+        - apply:
+            resource:
+              apiVersion: v1
+              kind: Pod
+              metadata:
+                name: gateway-apr
+                annotations:
+                  stoker.io/cr-name: test-apr
+              spec:
+                containers:
+                  - name: pause
+                    image: registry.k8s.io/pause:3.9
+    - name: wait for pod running
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            content: |
+              kubectl wait --for=condition=Ready pod/gateway-apr -n $NAMESPACE --timeout=60s
+    - name: assert gateway discovered
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                POD=$(kubectl get stoker test-apr -n $NAMESPACE -o jsonpath='{.status.discoveredGateways[0].podName}' 2>/dev/null)
+                [ "$POD" = "gateway-apr" ] && break
+                sleep 2
+              done
+              [ "$POD" = "gateway-apr" ] || { echo "Expected podName=gateway-apr, got: $POD"; exit 1; }
+              echo "Found gateway pod: $POD"
+    - name: assert sync in progress
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-apr -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="AllGatewaysSynced")].status}' 2>/dev/null)
+                REASON=$(kubectl get stoker test-apr -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="AllGatewaysSynced")].reason}' 2>/dev/null)
+                [ "$STATUS" = "False" ] && [ "$REASON" = "SyncInProgress" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for AllGatewaysSynced=False/SyncInProgress, got: status=$STATUS reason=$REASON"
+              exit 1

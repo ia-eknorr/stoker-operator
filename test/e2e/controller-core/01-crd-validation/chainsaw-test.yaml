@@ -1,0 +1,38 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: crd-validation
+spec:
+  description: Verify CRDs are installed and schema validation rejects invalid resources
+  steps:
+    - name: Assert Stoker CRD exists and is established
+      try:
+        - script:
+            timeout: 10s
+            content: |
+              kubectl get crd stokers.stoker.io -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' | grep -q True
+
+    - name: Assert SyncProfile CRD exists and is established
+      try:
+        - script:
+            timeout: 10s
+            content: |
+              kubectl get crd syncprofiles.stoker.io -o jsonpath='{.status.conditions[?(@.type=="Established")].status}' | grep -q True
+
+    - name: Reject Stoker CR missing spec.git
+      try:
+        - apply:
+            expect:
+              - check:
+                  ($error != null): true
+            resource:
+              apiVersion: stoker.io/v1alpha1
+              kind: Stoker
+              metadata:
+                name: test-invalid
+              spec:
+                gateway:
+                  port: 8088
+                  apiKeySecretRef:
+                    name: some-secret
+                    key: apiKey

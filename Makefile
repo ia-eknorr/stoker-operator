@@ -79,14 +79,46 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
+.PHONY: test-ci
+test-ci: setup-envtest ## Run tests without code generation (for CI, where lint covers fmt/vet).
+	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path)" go test $$(go list ./... | grep -v /e2e | grep -v /cmd/) -coverprofile cover.out
 
-.PHONY: functional-test
-functional-test: ## Run all functional tests in a kind cluster.
-	test/functional/run.sh
 
-.PHONY: functional-test-phase
-functional-test-phase: ## Run a specific phase: make functional-test-phase PHASE=02
-	test/functional/run.sh $(PHASE)
+##@ E2E Tests
+
+CHAINSAW ?= $(LOCALBIN)/chainsaw
+CHAINSAW_VERSION ?= v0.2.14
+
+.PHONY: chainsaw
+chainsaw: $(CHAINSAW)
+$(CHAINSAW): $(LOCALBIN)
+	@[ -f "$(CHAINSAW)" ] || { \
+	set -e; \
+	OS=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
+	ARCH=$$(uname -m); case $$ARCH in x86_64) ARCH=amd64;; aarch64) ARCH=arm64;; esac; \
+	URL="https://github.com/kyverno/chainsaw/releases/download/$(CHAINSAW_VERSION)/chainsaw_$${OS}_$${ARCH}.tar.gz"; \
+	echo "Downloading chainsaw $(CHAINSAW_VERSION) from $$URL"; \
+	curl -sSL "$$URL" | tar xz -C "$(LOCALBIN)" chainsaw; \
+	}
+
+.PHONY: e2e-setup
+e2e-setup: ## Set up kind cluster and deploy operator for e2e tests.
+	test/e2e/setup.sh
+
+.PHONY: e2e-test
+e2e-test: chainsaw ## Run all Chainsaw e2e tests.
+	"$(CHAINSAW)" test --test-dir test/e2e/ --config test/e2e/.chainsaw.yaml
+
+.PHONY: e2e-test-focus
+e2e-test-focus: chainsaw ## Run specific e2e test: make e2e-test-focus TEST=controller-core/08-public-repo-no-auth
+	"$(CHAINSAW)" test --test-dir "test/e2e/$(TEST)" --config test/e2e/.chainsaw.yaml
+
+.PHONY: e2e-teardown
+e2e-teardown: ## Delete the e2e kind cluster.
+	kind delete cluster --name stoker-e2e
+
+.PHONY: e2e
+e2e: e2e-setup e2e-test ## Full e2e: setup + run tests.
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint linter

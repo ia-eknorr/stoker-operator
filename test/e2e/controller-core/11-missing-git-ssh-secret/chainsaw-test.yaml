@@ -1,0 +1,51 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: missing-git-ssh-secret
+spec:
+  description: Verify controller sets Ready=False when SSH key secret is missing
+  steps:
+    - name: Create api-key secret
+      try:
+        - apply:
+            file: ../../fixtures/api-key-secret.yaml
+
+    - name: Create Stoker CR with SSH auth referencing nonexistent secret
+      try:
+        - apply:
+            resource:
+              apiVersion: stoker.io/v1alpha1
+              kind: Stoker
+              metadata:
+                name: test-no-ssh
+              spec:
+                git:
+                  repo: git@github.com:example/repo.git
+                  ref: main
+                  auth:
+                    sshKey:
+                      secretRef:
+                        name: missing-ssh-key
+                        key: ssh-privatekey
+                gateway:
+                  port: 8088
+                  tls: false
+                  apiKeySecretRef:
+                    name: ignition-api-key
+                    key: apiKey
+
+    - name: Assert Ready=False
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-no-ssh -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)
+                [ "$STATUS" = "False" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for Ready=False, got: $STATUS"
+              exit 1

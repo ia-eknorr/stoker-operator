@@ -1,0 +1,91 @@
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: webhook-triggered-ref
+spec:
+  description: Verify webhook annotation triggers ref resolution to a new ref
+  steps:
+    - name: Deploy git server and api-key secret
+      try:
+        - apply:
+            file: ../../fixtures/git-server.yaml
+        - apply:
+            file: ../../fixtures/api-key-secret.yaml
+
+    - name: Wait for git server ready
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 90s
+            content: |
+              kubectl wait --for=condition=Ready pod/test-git-server -n $NAMESPACE --timeout=60s
+              # Wait for Service DNS + endpoint to propagate
+              for i in $(seq 1 15); do
+                if git ls-remote git://test-git-server.$NAMESPACE.svc.cluster.local:9418/test-repo.git HEAD >/dev/null 2>&1; then
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "git server not reachable via Service DNS"
+              exit 1
+
+    - name: Create Stoker CR at v1.0.0
+      try:
+        - apply:
+            resource:
+              apiVersion: stoker.io/v1alpha1
+              kind: Stoker
+              metadata:
+                name: test-wtr
+              spec:
+                git:
+                  repo: (join('', ['git://test-git-server.', $namespace, '.svc.cluster.local:9418/test-repo.git']))
+                  ref: v1.0.0
+                polling:
+                  enabled: false
+                gateway:
+                  port: 8088
+                  tls: false
+                  apiKeySecretRef:
+                    name: ignition-api-key
+                    key: apiKey
+
+    - name: Wait for initial ref resolution
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            timeout: 60s
+            content: |
+              for i in $(seq 1 30); do
+                STATUS=$(kubectl get stoker test-wtr -n $NAMESPACE -o jsonpath='{.status.conditions[?(@.type=="RefResolved")].status}' 2>/dev/null)
+                REF=$(kubectl get stoker test-wtr -n $NAMESPACE -o jsonpath='{.status.lastSyncRef}' 2>/dev/null)
+                [ "$STATUS" = "True" ] && [ "$REF" = "v1.0.0" ] && exit 0
+                sleep 2
+              done
+              echo "Timed out waiting for RefResolved=True and lastSyncRef=v1.0.0, got: status=$STATUS ref=$REF"
+              exit 1
+
+    - name: Annotate CR with requested-ref v2.0.0
+      try:
+        - script:
+            env:
+              - name: NAMESPACE
+                value: ($namespace)
+            content: |
+              kubectl annotate stoker test-wtr stoker.io/requested-ref=v2.0.0 -n $NAMESPACE
+
+    - name: Assert lastSyncRef changes to v2.0.0
+      try:
+        - assert:
+            timeout: 30s
+            resource:
+              apiVersion: stoker.io/v1alpha1
+              kind: Stoker
+              metadata:
+                name: test-wtr
+              status:
+                lastSyncRef: v2.0.0
