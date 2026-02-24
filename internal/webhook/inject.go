@@ -75,6 +75,14 @@ func (p *PodInjector) Handle(ctx context.Context, req admission.Request) admissi
 		return admission.Denied(err.Error())
 	}
 
+	// Write discovered CR name back to pod so the controller can find it
+	if pod.Annotations == nil {
+		pod.Annotations = make(map[string]string)
+	}
+	if pod.Annotations[stokertypes.AnnotationCRName] == "" {
+		pod.Annotations[stokertypes.AnnotationCRName] = crName
+	}
+
 	// Fetch GatewaySync CR
 	var gs stokerv1alpha1.GatewaySync
 	key := client.ObjectKey{Name: crName, Namespace: req.Namespace}
