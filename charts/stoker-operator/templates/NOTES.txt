@@ -39,9 +39,15 @@
                 required: true
             syncPeriod: 30
 
+{{- if .Values.webhook.namespaceSelector.requireLabel }}
 3. Label the namespace for sidecar injection:
 
     kubectl label namespace <namespace> stoker.io/injection=enabled
+{{- else }}
+3. Sidecar injection is enabled cluster-wide by default.
+   Pods with annotation stoker.io/inject: "true" will be injected in any namespace.
+   To restrict injection to specific namespaces, set webhook.namespaceSelector.requireLabel=true.
+{{- end }}
 
 4. Grant the agent RBAC in each namespace where gateways run:
 

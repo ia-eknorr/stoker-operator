@@ -21,10 +21,17 @@ webhooks:
     matchPolicy: Equivalent
     reinvocationPolicy: IfNeeded
     namespaceSelector:
+{{- if .Values.webhook.namespaceSelector.requireLabel }}
       matchExpressions:
         - key: stoker.io/injection
           operator: In
           values: ["enabled"]
+{{- else }}
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values: ["kube-system", "kube-node-lease"]
+{{- end }}
     rules:
       - apiGroups: [""]
         apiVersions: ["v1"]

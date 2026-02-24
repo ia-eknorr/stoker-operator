@@ -43,10 +43,11 @@ The controller uses a custom predicate that triggers reconciliation on spec gene
 
 ### Mutating webhook
 
-The webhook intercepts pod creation and injects the agent as a **native sidecar** — an init container with `restartPolicy: Always` (requires Kubernetes 1.28+). Injection requires two conditions:
+The webhook intercepts pod creation and injects the agent as a **native sidecar** — an init container with `restartPolicy: Always` (requires Kubernetes 1.28+). Injection requires one condition:
 
-1. **Namespace label:** `stoker.io/injection=enabled`
-2. **Pod annotation:** `stoker.io/inject: "true"`
+1. **Pod annotation:** `stoker.io/inject: "true"`
+
+Optionally, the `stoker.io/injection=enabled` namespace label can be required by setting `webhook.namespaceSelector.requireLabel=true` in the Helm values. This is useful for regulated environments that need explicit namespace opt-in.
 
 The agent image is resolved in three tiers: pod annotation `stoker.io/agent-image` > CR field `spec.agent.image` > environment variable `DEFAULT_AGENT_IMAGE`.
 

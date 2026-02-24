@@ -70,13 +70,19 @@ networkPolicy:
   enabled: false
 
 # -- Mutating webhook for sidecar injection. When enabled, pods with annotation
-# `stoker.io/inject: "true"` in labeled namespaces get the stoker-agent
-# sidecar injected automatically.
+# `stoker.io/inject: "true"` get the stoker-agent sidecar injected automatically.
+# By default, injection works in all namespaces except kube-system and kube-node-lease.
 webhook:
   # -- Enable the MutatingWebhookConfiguration and webhook Service.
   enabled: true
   # -- Webhook server port on the controller container.
   port: 9443
+  namespaceSelector:
+    # -- Require the stoker.io/injection=enabled label on namespaces
+    # for sidecar injection. When false (default), the webhook intercepts
+    # pod creates in all namespaces except kube-system and kube-node-lease.
+    # Enable for regulated environments that require explicit namespace opt-in.
+    requireLabel: false
 
 # -- cert-manager integration for webhook TLS certificates.
 # Requires cert-manager to be installed in the cluster.
