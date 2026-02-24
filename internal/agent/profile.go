@@ -23,6 +23,8 @@ type TemplateContext struct {
 	Namespace   string
 	Ref         string
 	Commit      string
+	CRName      string
+	Labels      map[string]string
 	Vars        map[string]string
 }
 
@@ -37,15 +39,19 @@ func fetchSyncProfile(ctx context.Context, c client.Client, namespace, name stri
 	return &sp.Spec, nil
 }
 
-// buildTemplateContext creates a TemplateContext from agent config and metadata.
-func buildTemplateContext(cfg *Config, meta *Metadata, profileVars map[string]string) *TemplateContext {
+// buildTemplateContext creates a TemplateContext from agent config, metadata, and pod labels.
+func buildTemplateContext(cfg *Config, meta *Metadata, profileVars map[string]string, labels map[string]string) *TemplateContext {
 	vars := make(map[string]string, len(profileVars))
 	maps.Copy(vars, profileVars)
+	podLabels := make(map[string]string, len(labels))
+	maps.Copy(podLabels, labels)
 	return &TemplateContext{
 		GatewayName: cfg.GatewayName,
 		Namespace:   cfg.CRNamespace,
 		Ref:         meta.Ref,
 		Commit:      meta.Commit,
+		CRName:      cfg.CRName,
+		Labels:      podLabels,
 		Vars:        vars,
 	}
 }
@@ -135,23 +141,6 @@ func buildSyncPlan(
 			Source:      absSrc,
 			Destination: dst,
 			Type:        typ,
-		})
-	}
-
-	// Add deployment mode as final overlay mapping.
-	if profile.DeploymentMode != nil {
-		src, err := resolveTemplate(profile.DeploymentMode.Source, tmplCtx)
-		if err != nil {
-			return nil, fmt.Errorf("deploymentMode.source: %w", err)
-		}
-		if err := validateResolvedPath(src, "deploymentMode.source"); err != nil {
-			return nil, err
-		}
-
-		plan.Mappings = append(plan.Mappings, syncengine.ResolvedMapping{
-			Source:      filepath.Join(repoPath, src),
-			Destination: "config/resources/core",
-			Type:        "dir",
 		})
 	}
 

@@ -14,6 +14,8 @@ func TestResolveTemplate_AllFields(t *testing.T) {
 		Namespace:   "prod",
 		Ref:         "refs/heads/main",
 		Commit:      "abc123",
+		CRName:      "my-stoker",
+		Labels:      map[string]string{"site": "us-east-1", "tier": "edge"},
 		Vars:        map[string]string{"env": "production", "region": "us-east"},
 	}
 
@@ -25,6 +27,9 @@ func TestResolveTemplate_AllFields(t *testing.T) {
 		{"{{.Namespace}}", "prod"},
 		{"{{.Ref}}", "refs/heads/main"},
 		{"{{.Commit}}", "abc123"},
+		{"{{.CRName}}", "my-stoker"},
+		{"{{.Labels.site}}", "us-east-1"},
+		{"sites/{{.Labels.tier}}/config", "sites/edge/config"},
 		{"{{.Vars.env}}", "production"},
 		{"config/{{.Vars.region}}/overlay", "config/us-east/overlay"},
 		{"no-template", "no-template"},
@@ -45,12 +50,19 @@ func TestResolveTemplate_AllFields(t *testing.T) {
 func TestResolveTemplate_MissingKey(t *testing.T) {
 	ctx := &TemplateContext{
 		GatewayName: "gw",
+		Labels:      map[string]string{},
 		Vars:        map[string]string{},
 	}
 
-	_, err := resolveTemplate("{{.Vars.missing}}", ctx)
-	if err == nil {
-		t.Error("expected error for missing template key")
+	tests := []string{
+		"{{.Vars.missing}}",
+		"{{.Labels.missing}}",
+	}
+	for _, tmpl := range tests {
+		_, err := resolveTemplate(tmpl, ctx)
+		if err == nil {
+			t.Errorf("expected error for missing key in %q", tmpl)
+		}
 	}
 }
 
@@ -113,45 +125,6 @@ func TestBuildSyncPlan_Basic(t *testing.T) {
 	}
 	if plan.Mappings[1].Source != filepath.Join(repoPath, "site", "us-east") {
 		t.Errorf("mapping[1].Source = %q, want %s", plan.Mappings[1].Source, filepath.Join(repoPath, "site", "us-east"))
-	}
-}
-
-func TestBuildSyncPlan_WithDeploymentMode(t *testing.T) {
-	tmp := t.TempDir()
-	repoPath := filepath.Join(tmp, "repo")
-	liveDir := filepath.Join(tmp, "live")
-
-	writeFile(t, filepath.Join(repoPath, "shared", "a.txt"), "a")
-	writeFile(t, filepath.Join(repoPath, "modes", "dev", "b.txt"), "b")
-
-	profile := &stokerv1alpha1.SyncProfileSpec{
-		Mappings: []stokerv1alpha1.SyncMapping{
-			{Source: "shared", Destination: "config/resources/core", Type: "dir"},
-		},
-		DeploymentMode: &stokerv1alpha1.DeploymentModeSpec{
-			Name:   "dev",
-			Source: "modes/dev",
-		},
-	}
-
-	ctx := &TemplateContext{GatewayName: "gw", Namespace: "default", Vars: map[string]string{}}
-
-	plan, err := buildSyncPlan(profile, ctx, repoPath, liveDir, nil)
-	if err != nil {
-		t.Fatalf("buildSyncPlan: %v", err)
-	}
-
-	// Should have 2 mappings: user mapping + deployment mode.
-	if len(plan.Mappings) != 2 {
-		t.Fatalf("expected 2 mappings, got %d", len(plan.Mappings))
-	}
-
-	last := plan.Mappings[len(plan.Mappings)-1]
-	if last.Destination != "config/resources/core" {
-		t.Errorf("deployment mode destination = %q, want config/resources/core", last.Destination)
-	}
-	if last.Source != filepath.Join(repoPath, "modes", "dev") {
-		t.Errorf("deployment mode source = %q", last.Source)
 	}
 }
 
@@ -228,6 +201,7 @@ func TestParseCRExcludes(t *testing.T) {
 func TestBuildTemplateContext(t *testing.T) {
 	cfg := &Config{
 		GatewayName: "gw-test",
+		CRName:      "my-cr",
 		CRNamespace: "my-ns",
 	}
 	meta := &Metadata{
@@ -235,8 +209,9 @@ func TestBuildTemplateContext(t *testing.T) {
 		Commit: "deadbeef",
 	}
 	vars := map[string]string{"site": "us-east-1"}
+	labels := map[string]string{"app": "ignition", "tier": "edge"}
 
-	ctx := buildTemplateContext(cfg, meta, vars)
+	ctx := buildTemplateContext(cfg, meta, vars, labels)
 
 	if ctx.GatewayName != "gw-test" {
 		t.Errorf("GatewayName = %q", ctx.GatewayName)
@@ -249,6 +224,15 @@ func TestBuildTemplateContext(t *testing.T) {
 	}
 	if ctx.Commit != "deadbeef" {
 		t.Errorf("Commit = %q", ctx.Commit)
+	}
+	if ctx.CRName != "my-cr" {
+		t.Errorf("CRName = %q", ctx.CRName)
+	}
+	if ctx.Labels["app"] != "ignition" {
+		t.Errorf("Labels[app] = %q", ctx.Labels["app"])
+	}
+	if ctx.Labels["tier"] != "edge" {
+		t.Errorf("Labels[tier] = %q", ctx.Labels["tier"])
 	}
 	if ctx.Vars["site"] != "us-east-1" {
 		t.Errorf("Vars[site] = %q", ctx.Vars["site"])

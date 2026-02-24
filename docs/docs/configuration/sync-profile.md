@@ -6,7 +6,7 @@ description: Full reference for the SyncProfile custom resource.
 
 # SyncProfile Reference
 
-The `SyncProfile` custom resource defines file mappings, deployment mode overlays, exclude patterns, and sync behavior for gateways.
+The `SyncProfile` custom resource defines file mappings, exclude patterns, and sync behavior for gateways.
 
 ```yaml
 apiVersion: stoker.io/v1alpha1
@@ -23,9 +23,6 @@ spec:
     - source: "services/{{.GatewayName}}/config/"
       destination: "config/"
       type: dir
-  deploymentMode:
-    name: production
-    source: "overlays/production/"
   syncPeriod: 30
   designerSessionPolicy: wait
 ```
@@ -45,21 +42,39 @@ An ordered list of source-to-destination file mappings. Applied top to bottom; l
 
 Both `source` and `destination` support Go template variables:
 
-| Variable | Description |
-|----------|-------------|
-| `{{.GatewayName}}` | Gateway identity from the `stoker.io/gateway-name` annotation (or `app.kubernetes.io/name` label) |
-| `{{.Vars.key}}` | Custom variable from `spec.vars` |
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `{{.GatewayName}}` | Gateway identity from the `stoker.io/gateway-name` annotation (or `app.kubernetes.io/name` label) | `sites/{{.GatewayName}}/projects` |
+| `{{.CRName}}` | Name of the Stoker CR that owns this sync | `config/{{.CRName}}/resources` |
+| `{{.Labels.key}}` | Any label on the gateway pod (read at sync time) | `sites/{{.Labels.site}}/projects` |
+| `{{.Namespace}}` | Pod namespace | `config/{{.Namespace}}/overlay` |
+| `{{.Ref}}` | Resolved git ref | — |
+| `{{.Commit}}` | Full commit SHA | — |
+| `{{.Vars.key}}` | Custom variable from `spec.vars` | `site{{.Vars.siteNumber}}/scripts` |
 
-Using `{{.GatewayName}}` in source paths lets a single SyncProfile serve multiple gateways, each syncing from its own directory in the repo.
+Using `{{.GatewayName}}` or `{{.Labels.key}}` in source paths lets a single SyncProfile serve multiple gateways, each syncing from its own directory in the repo.
 
-## `spec.deploymentMode`
+#### Example: label-based routing
 
-Configures an Ignition deployment mode overlay. The overlay directory is merged on top of `config/` after all mappings are applied.
+Add a `site` label to each gateway pod and use it in the SyncProfile:
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Mode name (informational, shown in status) |
-| `source` | string | Yes | Repo-relative overlay directory |
+```yaml
+spec:
+  mappings:
+    - source: "services/{{.Labels.site}}/projects/"
+      destination: "projects/"
+      type: dir
+      required: true
+    - source: "services/{{.Labels.site}}/config/"
+      destination: "config/"
+      type: dir
+```
+
+A pod with label `site: ignition-blue` syncs from `services/ignition-blue/`, while `site: ignition-red` syncs from `services/ignition-red/` — same SyncProfile, different files.
+
+:::note
+`{{.Labels.key}}` reads from the pod's Kubernetes labels at sync time. The agent needs `get` permission on pods (included in the agent ClusterRole).
+:::
 
 ## `spec.excludePatterns`
 

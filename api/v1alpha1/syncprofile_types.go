@@ -15,11 +15,6 @@ type SyncProfileSpec struct {
 	// +kubebuilder:validation:MinItems=1
 	Mappings []SyncMapping `json:"mappings"`
 
-	// deploymentMode configures an Ignition deployment mode overlay.
-	// Applied after all mappings onto config/resources/core/.
-	// +optional
-	DeploymentMode *DeploymentModeSpec `json:"deploymentMode,omitempty"`
-
 	// excludePatterns are glob patterns for files to exclude.
 	// Merged with Stoker global excludePatterns (additive).
 	// +optional
@@ -67,13 +62,15 @@ type SyncProfileSpec struct {
 // SyncMapping defines a single source→destination file mapping.
 type SyncMapping struct {
 	// source is the repo-relative path to copy from.
-	// Supports Go template variables: {{.Vars.key}}, {{.GatewayName}}.
+	// Supports Go template variables: {{.GatewayName}}, {{.CRName}},
+	// {{.Labels.key}}, {{.Vars.key}}, {{.Namespace}}, {{.Ref}}, {{.Commit}}.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Source string `json:"source"`
 
 	// destination is the gateway-relative path to copy to.
-	// Supports Go template variables: {{.Vars.key}}, {{.GatewayName}}.
+	// Supports Go template variables: {{.GatewayName}}, {{.CRName}},
+	// {{.Labels.key}}, {{.Vars.key}}, {{.Namespace}}, {{.Ref}}, {{.Commit}}.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinLength=1
 	Destination string `json:"destination"`
@@ -106,19 +103,6 @@ type ProfileDependency struct {
 	Condition string `json:"condition,omitempty"`
 }
 
-// DeploymentModeSpec configures an Ignition deployment mode overlay.
-type DeploymentModeSpec struct {
-	// name is the mode name (informational, shown in status).
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	Name string `json:"name"`
-
-	// source is the repo-relative overlay directory.
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:MinLength=1
-	Source string `json:"source"`
-}
-
 // ============================================================
 // SyncProfile Status Types
 // ============================================================
@@ -148,7 +132,6 @@ type SyncProfileStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:resource:shortName=sp
-// +kubebuilder:printcolumn:name="Mode",type="string",JSONPath=`.spec.deploymentMode.name`
 // +kubebuilder:printcolumn:name="Gateways",type="integer",JSONPath=`.status.gatewayCount`
 // +kubebuilder:printcolumn:name="Accepted",type="string",JSONPath=`.status.conditions[?(@.type=="Accepted")].status`
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=`.metadata.creationTimestamp`
