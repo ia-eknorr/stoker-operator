@@ -345,7 +345,7 @@ func buildEnvVars(crName, gatewayName, profile, gatewayPort, gatewayTLS string, 
 		{Name: "DATA_PATH", Value: mountIgnitionData},
 		{Name: "GATEWAY_PORT", Value: gatewayPort},
 		{Name: "GATEWAY_TLS", Value: gatewayTLS},
-		{Name: "API_KEY_FILE", Value: mountAPIKey + "/" + gs.Spec.Gateway.APIKeySecretRef.Key},
+		{Name: "API_KEY_FILE", Value: mountAPIKey + "/" + gs.Spec.Gateway.API.SecretKey},
 	}
 
 	// Git credential env vars depend on auth type
@@ -445,7 +445,7 @@ func agentVolumes(gs *stokerv1alpha1.GatewaySync) []corev1.Volume {
 			Name: volumeAPIKey,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName:  gs.Spec.Gateway.APIKeySecretRef.Name,
+					SecretName:  gs.Spec.Gateway.API.SecretName,
 					DefaultMode: &secretMode,
 				},
 			},

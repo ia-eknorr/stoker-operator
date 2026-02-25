@@ -74,9 +74,8 @@ spec:
     repo: "https://github.com/ia-eknorr/test-ignition-project.git"
     ref: "main"
   gateway:
-    apiKeySecretRef:
-      name: gw-api-key
-      key: apiKey
+    api:
+      secretName: gw-api-key
   sync:
     profiles:
       standard:

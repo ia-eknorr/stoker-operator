@@ -58,9 +58,9 @@ func testGatewaySync() *stokerv1alpha1.GatewaySync {
 			},
 			Gateway: stokerv1alpha1.GatewaySpec{
 				Port: 8043,
-				APIKeySecretRef: stokerv1alpha1.SecretKeyRef{
-					Name: "api-key-secret",
-					Key:  "apiKey",
+				API: stokerv1alpha1.GatewayAPISpec{
+					SecretName: "api-key-secret",
+					SecretKey:  "apiKey",
 				},
 			},
 			Sync: stokerv1alpha1.SyncSpec{

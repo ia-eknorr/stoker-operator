@@ -66,9 +66,8 @@ spec:
                 gateway:
                   port: 8088
                   tls: false
-                  apiKeySecretRef:
-                    name: ignition-api-key
-                    key: apiKey
+                  api:
+                    secretName: ignition-api-key
 
     - name: Create pod with pre-existing stoker-agent initContainer
       try:

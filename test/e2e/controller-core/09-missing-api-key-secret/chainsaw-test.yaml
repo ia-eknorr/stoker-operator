@@ -50,9 +50,8 @@ spec:
                 gateway:
                   port: 8088
                   tls: false
-                  apiKeySecretRef:
-                    name: missing-secret
-                    key: apiKey
+                  api:
+                    secretName: missing-secret
 
     - name: Assert Ready=False
       try:

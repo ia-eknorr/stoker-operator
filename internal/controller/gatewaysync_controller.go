@@ -472,7 +472,7 @@ func (r *GatewaySyncReconciler) validateGitSecrets(ctx context.Context, gs *stok
 func (r *GatewaySyncReconciler) validateAPIKeySecret(ctx context.Context, gs *stokerv1alpha1.GatewaySync) error {
 	secret := &corev1.Secret{}
 	key := types.NamespacedName{
-		Name:      gs.Spec.Gateway.APIKeySecretRef.Name,
+		Name:      gs.Spec.Gateway.API.SecretName,
 		Namespace: gs.Namespace,
 	}
 	if err := r.Get(ctx, key, secret); err != nil {
