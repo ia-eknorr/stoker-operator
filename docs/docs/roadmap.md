@@ -6,60 +6,65 @@ description: Planned features and milestones for Stoker.
 
 # Roadmap
 
-## v0.1.0 — MVP ✓
+Current version: **v0.3.0** — [see the changelog](https://github.com/ia-eknorr/stoker-operator/blob/main/CHANGELOG.md) for release history.
 
-Controller + agent sidecar for Git-driven Ignition gateway configuration sync. GatewaySync CRD, mutating webhook for sidecar injection, webhook receiver, designer session awareness, Helm chart with cert-manager TLS.
+## v0.4.0 — Production Readiness
 
-## v0.2.0 — Stability ✓
+Observability and security fundamentals — the prerequisites for production trust.
 
-CRD consolidation, bug fixes, and developer experience.
+- Prometheus metrics for controller (reconcile duration, ref resolution latency, gateway counts, error rates)
+- Prometheus metrics for agent (sync duration, files changed, git fetch duration, error counts) with dedicated metrics endpoint
+- Grafana dashboard JSON shipped in Helm chart
+- SSH host key verification with optional `knownHostsSecretRef` (fix `InsecureIgnoreHostKey`)
+- Exponential backoff for transient git and API errors (30s → 60s → 120s → 5m cap)
+- Migrate GitHub App tokens from ConfigMap to Secret
 
-- Merged `SyncProfile` into `GatewaySync` CRD as embedded profiles
-- Automatic agent RBAC binding via controller
-- Namespace injection label optional (default off)
-- 5 bug fixes across controller, agent, and webhook
-- Documentation site with quickstart, guides, and CRD reference
-- Chainsaw e2e test suite replacing shell functional tests
+## v0.5.0 — Scale & Operability
 
-## v0.3.0 — Auth & API Ergonomics ✓
+Remove scaling walls and make the agent more reactive.
 
-GitHub App authentication and CRD cleanup.
+- Informer-based ConfigMap watch replacing 3s polling in agent
+- Downward API annotation reader — enables `stoker.io/ref-override` and profile switching without pod restart
+- Per-gateway status ConfigMap sharding (eliminate write contention at 10+ gateways)
+- `emptyDir` size limit on agent repo volume (prevent node disk pressure from large repos)
+- Webhook receiver rate limiting
+- In-flight sync completion deadline on graceful shutdown
 
-- GitHub App authentication with controller-mediated token exchange, per-CR cache with 5-minute pre-expiry refresh, and GitHub Enterprise Server support via `apiBaseURL`
-- **Breaking:** renamed `gateway.apiKeySecretRef` to `gateway.api.secretName` / `gateway.api.secretKey` with `secretKey` defaulting to `"apiKey"` when omitted
-- Fixed gateway port/TLS defaults to `8088`/`false` (matching Ignition Helm chart defaults)
-- Webhook receiver disabled by default (enable via Helm value)
+## v0.6.0 — Observability & Conditions
 
-## v0.4.0 — Reliability
+Operational visibility for fleet management.
 
-Focus on observability, conflict handling, and recovery.
-
-- Prometheus metrics for controller (reconcile duration, ref resolution latency, error counts)
-- Prometheus metrics for agent (sync duration, files changed, error counts)
+- New condition types: `AgentReady`, `RefSkew`
+- Drift detection (re-sync same commit reports unexpected changes)
+- Post-sync health verification (project state, tag providers — not just scan 200)
+- Sync diff report in changes ConfigMap
 - Conflict detection when multiple profiles map to the same destination path
-- Exponential backoff for transient git errors
-- K8s informer-based ConfigMap watch (replace polling with scoped informer)
-- In-flight sync completion deadline on shutdown
 
-## v0.5.0 — Observability & Conditions
+## v0.7.0 — Developer Experience
 
-Focus on condition types, multi-tenancy, and dependency ordering.
+Features that solve real multi-site integrator pain points.
 
-- New condition types: `AgentReady`, `RefSkew`, `DependenciesMet`
-- `RefSkew` detection (controller detects gateway drift from CR)
-- `DependenciesMet` condition enforcement for `dependsOn` profiles
-- Downward API annotation reader (enables ref-override without pod restart)
-- Per-gateway sync status conditions on the GatewaySync CR
+- Config resource templating — resolve `{{.Vars.*}}` inside file contents for mappings with `template: true`
+- Designer session project-level granularity (sync Project B while designer has Project A open)
+- Validating admission webhook for GatewaySync CRs (reject invalid CRs at apply time)
+- Structured audit logging (per-sync JSON record: timestamp, commit, author, gateway, files, result)
+
+## Future Ideas
+
+These are valuable but not yet scoped into versioned milestones. They'll be prioritized based on user feedback.
+
+**Safety & Trust:**
+- Pre-sync backup with auto-rollback on scan failure
+- Module management (`.modl` sync to `modules/` with `postAction: restart`)
+- Per-CR webhook HMAC secrets (replace global HMAC)
+- Git commit signature verification (GPG/SSH, IEC 62443 compliance)
+
+**Reach:**
+- Standalone agent mode (systemd/Windows service for bare-metal Ignition servers)
+- Approval annotation gate for production gateways
+
+**Enterprise:**
+- Maintenance windows and change freeze schedules
+- External audit sink (SIEM integration via webhook/syslog)
+- Drift detection with configurable action (report / restore / alert)
 - Resource quotas and rate limiting for concurrent syncs
-
-## v0.6.0+ — Enterprise & Future
-
-- Rollback support: snapshot before sync, revert on failure
-- Bidirectional sync: watch gateway for designer changes, push back to git
-- Deployment strategy: canary rollouts with staged gateway selectors
-- External validation webhook before applying a sync
-- Config normalization via JSON path replacement
-- Drift detection: periodic comparison of live state vs. Git
-- Approval gates for production gateways
-- Multi-cluster support via hub-spoke model
-- Web UI dashboard for sync status visualization
