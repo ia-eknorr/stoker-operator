@@ -85,7 +85,7 @@ spec:
               POD_IP=$(kubectl get pod -n stoker-system -l app.kubernetes.io/name=stoker-operator \
                 -o jsonpath='{.items[0].status.podIP}')
               # Capture raw output; kubectl run --rm appends "pod deleted" to stdout
-              RAW=$(kubectl run curl-$RANDOM --rm -i --restart=Never \
+              RAW=$(kubectl run curl-webhook --rm -i --restart=Never \
                 --image=curlimages/curl:latest \
                 -n $NAMESPACE --timeout=20s -- \
                 curl -s -o /dev/null -w '%{http_code}' -X POST \
