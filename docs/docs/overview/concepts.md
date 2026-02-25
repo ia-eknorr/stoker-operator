@@ -6,7 +6,7 @@ description: Key terms from Kubernetes and Ignition explained for both audiences
 
 # Concepts
 
-Stoker bridges two worlds: **Kubernetes** (container orchestration) and **Ignition** (SCADA/ICS platform). This page explains key terms from both sides so you can follow the docs regardless of which domain you're coming from.
+Stoker is a Kubernetes operator for Ignition SCADA gateways. This page explains key Kubernetes and Stoker-specific terms so you can follow the docs even if you're new to the platform.
 
 ## Kubernetes concepts
 
@@ -29,22 +29,6 @@ If you're an Ignition integrator who hasn't worked with Kubernetes before, these
 | **RBAC (Role-Based Access Control)** | Kubernetes permission system. The agent sidecar needs permissions to read ConfigMaps in its namespace. |
 | **kubectl** | The command-line tool for interacting with a Kubernetes cluster. Equivalent to using the Ignition Gateway Webpage, but via terminal commands. |
 
-## Ignition concepts
-
-If you're a platform engineer who hasn't worked with Ignition before, these are the terms that appear in the docs and configuration.
-
-| Term | What it means |
-|------|--------------|
-| **Gateway** | An Ignition server instance. It hosts projects, manages tags, connects to PLCs and databases, and serves the Designer and client applications. Each gateway runs in its own pod. |
-| **Project** | An Ignition application that contains views, scripts, and configuration. Projects live in the gateway's `projects/` directory as files on disk. |
-| **Designer** | The IDE used to build Ignition projects. It connects to a gateway over the network. When a designer session is active, Stoker can wait, proceed, or abort syncing (configured via `designerSessionPolicy`). |
-| **Scan API** | REST endpoints (`/scan/projects`, `/scan/config`) that tell the gateway to reload files from disk without a restart. This is how Stoker applies changes after syncing files. |
-| **API Key** | An Ignition authentication token in the format `name:secret`. Used by the agent to call the scan API. Created through the Gateway Webpage under Config > Gateway Settings. |
-| **Resource system** | Ignition stores configuration as files in two directories: `config/` (gateway-level settings) and `projects/` (application projects). Stoker syncs these files from Git. |
-| **EAM (Enterprise Administration Module)** | Ignition's built-in tool for managing modules across a fleet of gateways. Stoker serves a complementary role — EAM manages modules, Stoker manages file-based configuration. |
-| **Tag provider** | A data source in Ignition that provides real-time values (from PLCs, databases, etc.). Tag provider configuration lives in the gateway's resource files. |
-| **Gateway Webpage** | The web-based admin interface for an Ignition gateway (typically at `https://gateway:8043`). Used for initial setup, monitoring, and configuration. |
-
 ## Stoker-specific terms
 
 These terms are specific to Stoker and appear throughout the documentation.
@@ -61,22 +45,3 @@ These terms are specific to Stoker and appear throughout the documentation.
 | **Webhook receiver** | An HTTP endpoint (`POST /webhook/{namespace}/{crName}`) that accepts push events from GitHub, ArgoCD, Kargo, or any system that sends JSON. Triggers an immediate sync instead of waiting for the poll interval. |
 | **Native sidecar** | A Kubernetes 1.28+ feature where init containers can have `restartPolicy: Always`, making them run alongside the main container for the pod's lifetime. Stoker uses this for the agent. |
 
-## Mapping the two worlds
-
-If you already know one domain well, these rough equivalences may help:
-
-| Ignition concept | Closest Kubernetes equivalent |
-|-----------------|------------------------------|
-| Gateway Webpage | `kubectl` CLI or Kubernetes Dashboard |
-| EAM agent connectivity | Pod health checks (liveness/readiness probes) |
-| Gateway backup/restore | Helm release + PersistentVolumeClaim snapshots |
-| Designer session lock | Kubernetes resource locks (leader election) |
-| Project import/export | Container image build + deploy |
-
-| Kubernetes concept | Closest Ignition equivalent |
-|-------------------|------------------------------|
-| Namespace | Site or environment (dev/staging/prod) |
-| Pod | Gateway instance |
-| Helm chart | Installer package with configurable options |
-| ConfigMap | Gateway configuration file |
-| Operator | Background service that manages other resources |
