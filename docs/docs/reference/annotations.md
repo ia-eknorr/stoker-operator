@@ -37,13 +37,13 @@ Use `--set-string` (not `--set`) when passing annotation values through Helm to 
 
 | Label | Value | Description |
 |-------|-------|-------------|
-| `stoker.io/injection` | `enabled` | Required on any namespace where the webhook should inject agent sidecars |
+| `stoker.io/injection` | `enabled` | Optional — only needed when `webhook.namespaceSelector.requireLabel=true`. Marks the namespace for sidecar injection. |
 
 ```bash
 kubectl label namespace my-namespace stoker.io/injection=enabled
 ```
 
-The mutating webhook uses a `namespaceSelector` that matches this label. Pods in unlabeled namespaces are never intercepted.
+By default, the webhook intercepts pod creates in all namespaces except `kube-system` and `kube-node-lease`. The namespace label is only required when `webhook.namespaceSelector.requireLabel` is set to `true` in the Helm values.
 
 ## CR annotations (set by webhook receiver)
 

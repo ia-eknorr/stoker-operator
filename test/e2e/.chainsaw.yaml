@@ -18,5 +18,4 @@ spec:
   namespace:
     template:
       metadata:
-        labels:
-          stoker.io/injection: "enabled"
+        labels: {}

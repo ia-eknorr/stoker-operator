@@ -1,12 +1,12 @@
 ---
 sidebar_position: 1
 title: Quickstart
-description: Get a single Ignition gateway syncing projects from Git in 7 steps.
+description: Get a single Ignition gateway syncing projects from Git in 6 steps.
 ---
 
 # Quickstart
 
-Get a single Ignition gateway syncing projects from Git in 7 steps.
+Get a single Ignition gateway syncing projects from Git in 6 steps.
 
 ## Prerequisites
 
@@ -46,22 +46,12 @@ kubectl get pods -n stoker-system
 
 You should see a `controller-manager` pod in `Running` state.
 
-## 3. Prepare a namespace
+## 3. Create secrets
 
-Create a namespace and label it for sidecar injection:
+Create a namespace and a secret so the agent can authenticate with the gateway's scan API. The example repository includes a pre-configured API token resource:
 
 ```bash
 kubectl create namespace quickstart
-kubectl label namespace quickstart stoker.io/injection=enabled
-```
-
-The `stoker.io/injection=enabled` label tells the mutating webhook to watch for annotated pods in this namespace.
-
-## 4. Create secrets
-
-The example repository includes a pre-configured API token resource. Create a matching secret so the agent can authenticate with the gateway's scan API:
-
-```bash
 kubectl create secret generic gw-api-key -n quickstart \
   --from-literal=apiKey="ignition-api-key:CYCSdRgW6MHYkeIXhH-BMqo1oaqfTdFi8tXvHJeCKmY"
 ```
@@ -72,7 +62,7 @@ This API key belongs to the public example repository and carries no security ri
 
 No git credentials are needed since we're using a public repository.
 
-## 5. Create a GatewaySync CR
+## 4. Create a GatewaySync CR
 
 The GatewaySync CR defines the git repository and sync profiles. We set `gateway.port` and `gateway.tls` to match the default Ignition Helm chart (HTTP on 8088):
 
@@ -116,7 +106,7 @@ kubectl get gatewaysyncs -n quickstart
 
 The `REF` column should show `main` and `COMMIT` should show a short hash. `READY` will be `False` until a gateway is deployed and synced.
 
-## 6. Grant agent RBAC
+## 5. Grant agent RBAC
 
 The agent sidecar needs permission to read GatewaySync CRs and write status ConfigMaps. The Helm chart installs a ClusterRole for this — bind it to the gateway's service account:
 
@@ -130,7 +120,7 @@ kubectl create rolebinding stoker-agent -n quickstart \
 The service account name (`ignition`) matches the default created by the Ignition Helm chart. If your gateway uses a different service account, substitute it here.
 :::
 
-## 7. Deploy an Ignition gateway
+## 6. Deploy an Ignition gateway
 
 Install using the [official Ignition Helm chart](https://charts.ia.io) with Stoker annotations.
 
@@ -160,7 +150,7 @@ podAnnotations:
 
 ```bash
 helm upgrade --install ignition inductiveautomation/ignition \
-  -n quickstart -f ignition-values.yaml
+  -n quickstart --create-namespace -f ignition-values.yaml
 ```
 
 The key annotations:

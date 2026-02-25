@@ -14,10 +14,11 @@ description: Common issues, debug commands, and FAQ.
 
 **Checklist:**
 
-1. **Namespace label** — ensure the namespace has `stoker.io/injection=enabled`:
+1. **Namespace label** — if `webhook.namespaceSelector.requireLabel=true` is set, ensure the namespace has `stoker.io/injection=enabled`:
    ```bash
    kubectl get namespace <ns> --show-labels
    ```
+   With the default configuration, no namespace label is needed — injection works in all namespaces except `kube-system` and `kube-node-lease`.
 2. **Pod annotation** — ensure the pod has `stoker.io/inject: "true"` (must be a string, not a boolean):
    ```bash
    kubectl get pod <pod> -n <ns> -o jsonpath='{.metadata.annotations}'

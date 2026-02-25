@@ -58,8 +58,9 @@ helm install stoker oci://ghcr.io/ia-eknorr/charts/stoker-operator \
 |-----|------|---------|-------------|
 | `webhook.enabled` | bool | `true` | Enable the MutatingWebhookConfiguration. |
 | `webhook.port` | int | `9443` | Webhook server port on the controller container. |
+| `webhook.namespaceSelector.requireLabel` | bool | `false` | Require `stoker.io/injection=enabled` label on namespaces for injection. When false, injection works in all namespaces except `kube-system` and `kube-node-lease`. |
 
-The webhook injects the agent sidecar into pods with annotation `stoker.io/inject: "true"` in namespaces labeled `stoker.io/injection=enabled`.
+The webhook injects the agent sidecar into pods with annotation `stoker.io/inject: "true"`. By default, injection works in all namespaces except `kube-system` and `kube-node-lease`. Set `webhook.namespaceSelector.requireLabel=true` to require the `stoker.io/injection=enabled` namespace label.
 
 ### Push Receiver (Webhook)
 

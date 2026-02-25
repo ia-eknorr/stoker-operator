@@ -21,7 +21,7 @@ helm install stoker oci://ghcr.io/ia-eknorr/charts/stoker-operator
 ```
 
 See the post-install notes (`helm get notes <release>`) for next steps: creating
-secrets, applying CRs, labeling namespaces, and granting agent RBAC.
+secrets, applying CRs, and granting agent RBAC.
 
 ## Architecture
 
@@ -36,7 +36,7 @@ Two webhook-like features exist and are configured separately:
 
 | Feature | Values key | Description |
 |---------|------------|-------------|
-| Sidecar injection | `webhook.*` | MutatingWebhook that injects the stoker-agent into labeled pods |
+| Sidecar injection | `webhook.*` | MutatingWebhook that injects the stoker-agent into annotated pods |
 | Push receiver | `webhookReceiver.*` | HTTP endpoint that accepts GitHub/GitLab push events for immediate sync |
 
 {{ template "chart.requirementsSection" . }}
