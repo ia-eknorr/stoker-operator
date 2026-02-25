@@ -149,21 +149,21 @@ spec:
                 description: gateway configures how the operator connects to Ignition
                   gateways.
                 properties:
-                  apiKeySecretRef:
-                    description: apiKeySecretRef points to the Secret containing the
-                      Ignition API key.
+                  api:
+                    description: api configures the Ignition gateway API key secret.
                     properties:
-                      key:
-                        description: key is the key within the Secret data.
-                        minLength: 1
+                      secretKey:
+                        default: apiKey
+                        description: secretKey is the key within the Secret. Defaults
+                          to "apiKey".
                         type: string
-                      name:
-                        description: name is the name of the Secret in the same namespace.
+                      secretName:
+                        description: secretName is the name of the Secret containing
+                          the Ignition API key.
                         minLength: 1
                         type: string
                     required:
-                    - key
-                    - name
+                    - secretName
                     type: object
                   port:
                     default: 8088
@@ -175,7 +175,7 @@ spec:
                     description: tls enables TLS for gateway API connections.
                     type: boolean
                 required:
-                - apiKeySecretRef
+                - api
                 type: object
               git:
                 description: git configures the source repository.

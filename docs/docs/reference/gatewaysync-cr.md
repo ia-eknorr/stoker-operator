@@ -30,9 +30,8 @@ spec:
   gateway:
     port: 8088
     tls: false
-    apiKeySecretRef:
-      name: gw-api-key
-      key: apiKey
+    api:
+      secretName: gw-api-key
   sync:
     defaults:
       excludePatterns:
@@ -143,8 +142,8 @@ If you configure a [webhook receiver](/reference/helm-values#push-receiver-webho
 |-------|------|----------|---------|-------------|
 | `port` | int32 | No | `8088` | Ignition gateway API port |
 | `tls` | bool | No | `false` | Enable TLS for gateway API connections |
-| `apiKeySecretRef.name` | string | Yes | — | Name of the Secret containing the Ignition API key |
-| `apiKeySecretRef.key` | string | Yes | — | Key within the Secret |
+| `api.secretName` | string | Yes | — | Name of the Secret containing the Ignition API key |
+| `api.secretKey` | string | No | `"apiKey"` | Key within the Secret |
 
 ## `spec.sync`
 
