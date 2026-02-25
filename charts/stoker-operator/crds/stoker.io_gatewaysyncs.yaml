@@ -166,12 +166,12 @@ spec:
                     - name
                     type: object
                   port:
-                    default: 8043
+                    default: 8088
                     description: port is the Ignition gateway API port.
                     format: int32
                     type: integer
                   tls:
-                    default: true
+                    default: false
                     description: tls enables TLS for gateway API connections.
                     type: boolean
                 required:

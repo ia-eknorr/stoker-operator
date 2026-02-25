@@ -433,7 +433,7 @@ func agentVolumeMounts(gs *stokerv1alpha1.GatewaySync) []corev1.VolumeMount {
 // agentVolumes returns the volumes for the agent sidecar.
 // The git-credentials volume is only included when auth is configured.
 func agentVolumes(gs *stokerv1alpha1.GatewaySync) []corev1.Volume {
-	secretMode := int32(0400)
+	secretMode := int32(0444)
 	vols := []corev1.Volume{
 		{
 			Name: volumeSyncRepo,

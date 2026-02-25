@@ -114,12 +114,12 @@ type PollingSpec struct {
 // can override via pod annotations.
 type GatewaySpec struct {
 	// port is the Ignition gateway API port.
-	// +kubebuilder:default=8043
+	// +kubebuilder:default=8088
 	// +optional
 	Port int32 `json:"port,omitempty"`
 
 	// tls enables TLS for gateway API connections.
-	// +kubebuilder:default=true
+	// +kubebuilder:default=false
 	// +optional
 	TLS *bool `json:"tls,omitempty"`
 

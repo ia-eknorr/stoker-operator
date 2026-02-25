@@ -28,8 +28,8 @@ spec:
     enabled: true
     interval: "60s"
   gateway:
-    port: 8043
-    tls: true
+    port: 8088
+    tls: false
     apiKeySecretRef:
       name: gw-api-key
       key: apiKey
@@ -141,8 +141,8 @@ If you configure a [webhook receiver](/reference/helm-values#push-receiver-webho
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `port` | int32 | No | `8043` | Ignition gateway API port |
-| `tls` | bool | No | `true` | Enable TLS for gateway API connections |
+| `port` | int32 | No | `8088` | Ignition gateway API port |
+| `tls` | bool | No | `false` | Enable TLS for gateway API connections |
 | `apiKeySecretRef.name` | string | Yes | — | Name of the Secret containing the Ignition API key |
 | `apiKeySecretRef.key` | string | Yes | — | Key within the Secret |
 
@@ -204,7 +204,7 @@ An ordered list of source-to-destination file mappings. Applied top to bottom; l
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `source` | string | Yes | — | Repo-relative path to copy from |
-| `destination` | string | Yes | — | Gateway-relative path to copy to |
+| `destination` | string | Yes | — | Path relative to the Ignition data directory (`/ignition-data/`) |
 | `type` | string | No | `"dir"` | Entry type — `"dir"` or `"file"` |
 | `required` | bool | No | `false` | Fail sync if the source path doesn't exist |
 
