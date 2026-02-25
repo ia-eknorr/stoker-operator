@@ -32,9 +32,8 @@ spec:
                 gateway:
                   port: 8088
                   tls: false
-                  apiKeySecretRef:
-                    name: ignition-api-key
-                    key: apiKey
+                  api:
+                    secretName: ignition-api-key
         - apply:
             resource:
               apiVersion: stoker.io/v1alpha1
@@ -55,9 +54,8 @@ spec:
                 gateway:
                   port: 8088
                   tls: false
-                  apiKeySecretRef:
-                    name: ignition-api-key
-                    key: apiKey
+                  api:
+                    secretName: ignition-api-key
 
     - name: Create pod without cr-name annotation
       try:

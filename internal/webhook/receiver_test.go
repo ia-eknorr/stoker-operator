@@ -114,9 +114,9 @@ func testCR() *stokerv1alpha1.GatewaySync {
 				Ref:  "main",
 			},
 			Gateway: stokerv1alpha1.GatewaySpec{
-				APIKeySecretRef: stokerv1alpha1.SecretKeyRef{
-					Name: "api-key",
-					Key:  "apiKey",
+				API: stokerv1alpha1.GatewayAPISpec{
+					SecretName: "api-key",
+					SecretKey:  "apiKey",
 				},
 			},
 		},

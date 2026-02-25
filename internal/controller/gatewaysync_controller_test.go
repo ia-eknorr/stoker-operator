@@ -80,9 +80,9 @@ func createCR(ctx context.Context, name, secretName string) {
 				Ref:  "main",
 			},
 			Gateway: stokerv1alpha1.GatewaySpec{
-				APIKeySecretRef: stokerv1alpha1.SecretKeyRef{
-					Name: secretName,
-					Key:  "apiKey",
+				API: stokerv1alpha1.GatewayAPISpec{
+					SecretName: secretName,
+					SecretKey:  "apiKey",
 				},
 			},
 			Sync: stokerv1alpha1.SyncSpec{
@@ -334,9 +334,9 @@ var _ = Describe("GatewaySync Controller", func() {
 						Ref:  "main",
 					},
 					Gateway: stokerv1alpha1.GatewaySpec{
-						APIKeySecretRef: stokerv1alpha1.SecretKeyRef{
-							Name: "nonexistent-secret",
-							Key:  "apiKey",
+						API: stokerv1alpha1.GatewayAPISpec{
+							SecretName: "nonexistent-secret",
+							SecretKey:  "apiKey",
 						},
 					},
 					Sync: stokerv1alpha1.SyncSpec{
@@ -418,9 +418,9 @@ var _ = Describe("GatewaySync Controller", func() {
 						Ref:  "main",
 					},
 					Gateway: stokerv1alpha1.GatewaySpec{
-						APIKeySecretRef: stokerv1alpha1.SecretKeyRef{
-							Name: secretName,
-							Key:  "apiKey",
+						API: stokerv1alpha1.GatewayAPISpec{
+							SecretName: secretName,
+							SecretKey:  "apiKey",
 						},
 					},
 					Sync: stokerv1alpha1.SyncSpec{
@@ -843,7 +843,7 @@ var _ = Describe("GatewaySync Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: "default"},
 				Spec: stokerv1alpha1.GatewaySyncSpec{
 					Git:     stokerv1alpha1.GitSpec{Repo: "git@github.com:example/test.git", Ref: "main"},
-					Gateway: stokerv1alpha1.GatewaySpec{APIKeySecretRef: stokerv1alpha1.SecretKeyRef{Name: secretName, Key: "apiKey"}},
+					Gateway: stokerv1alpha1.GatewaySpec{API: stokerv1alpha1.GatewayAPISpec{SecretName: secretName, SecretKey: "apiKey"}},
 					Sync: stokerv1alpha1.SyncSpec{
 						Profiles: map[string]stokerv1alpha1.SyncProfileSpec{
 							"blue": {Mappings: []stokerv1alpha1.SyncMapping{{Source: "services/blue/projects", Destination: "projects"}}},
@@ -876,7 +876,7 @@ var _ = Describe("GatewaySync Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: "default"},
 				Spec: stokerv1alpha1.GatewaySyncSpec{
 					Git:     stokerv1alpha1.GitSpec{Repo: "git@github.com:example/test.git", Ref: "main"},
-					Gateway: stokerv1alpha1.GatewaySpec{APIKeySecretRef: stokerv1alpha1.SecretKeyRef{Name: secretName, Key: "apiKey"}},
+					Gateway: stokerv1alpha1.GatewaySpec{API: stokerv1alpha1.GatewayAPISpec{SecretName: secretName, SecretKey: "apiKey"}},
 					Sync: stokerv1alpha1.SyncSpec{
 						Profiles: map[string]stokerv1alpha1.SyncProfileSpec{
 							"evil": {Mappings: []stokerv1alpha1.SyncMapping{{Source: "../../../etc/passwd", Destination: "config"}}},
@@ -909,7 +909,7 @@ var _ = Describe("GatewaySync Controller", func() {
 				ObjectMeta: metav1.ObjectMeta{Name: resourceName, Namespace: "default"},
 				Spec: stokerv1alpha1.GatewaySyncSpec{
 					Git:     stokerv1alpha1.GitSpec{Repo: "git@github.com:example/test.git", Ref: "main"},
-					Gateway: stokerv1alpha1.GatewaySpec{APIKeySecretRef: stokerv1alpha1.SecretKeyRef{Name: secretName, Key: "apiKey"}},
+					Gateway: stokerv1alpha1.GatewaySpec{API: stokerv1alpha1.GatewayAPISpec{SecretName: secretName, SecretKey: "apiKey"}},
 					Sync: stokerv1alpha1.SyncSpec{
 						Profiles: map[string]stokerv1alpha1.SyncProfileSpec{
 							"evil": {Mappings: []stokerv1alpha1.SyncMapping{{Source: "/etc/passwd", Destination: "config"}}},

@@ -123,8 +123,21 @@ type GatewaySpec struct {
 	// +optional
 	TLS *bool `json:"tls,omitempty"`
 
-	// apiKeySecretRef points to the Secret containing the Ignition API key.
-	APIKeySecretRef SecretKeyRef `json:"apiKeySecretRef"`
+	// api configures the Ignition gateway API key secret.
+	API GatewayAPISpec `json:"api"`
+}
+
+// GatewayAPISpec references the Secret containing the Ignition API key.
+type GatewayAPISpec struct {
+	// secretName is the name of the Secret containing the Ignition API key.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	SecretName string `json:"secretName"`
+
+	// secretKey is the key within the Secret. Defaults to "apiKey".
+	// +kubebuilder:default="apiKey"
+	// +optional
+	SecretKey string `json:"secretKey,omitempty"`
 }
 
 // ============================================================

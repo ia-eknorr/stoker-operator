@@ -54,9 +54,8 @@ spec:
                 gateway:
                   port: 8088
                   tls: false
-                  apiKeySecretRef:
-                    name: ignition-api-key
-                    key: apiKey
+                  api:
+                    secretName: ignition-api-key
 
     - name: Wait for initial ref resolution
       try:

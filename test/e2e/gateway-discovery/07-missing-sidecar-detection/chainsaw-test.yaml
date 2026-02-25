@@ -43,9 +43,8 @@ spec:
                           destination: "config"
                           type: dir
                 gateway:
-                  apiKeySecretRef:
-                    name: ignition-api-key
-                    key: apiKey
+                  api:
+                    secretName: ignition-api-key
     - name: wait for ref resolved
       try:
         - script:
