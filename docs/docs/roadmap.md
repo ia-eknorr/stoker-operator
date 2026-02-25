@@ -19,7 +19,15 @@ Observability and security fundamentals — the prerequisites for production tru
 - Exponential backoff for transient git and API errors (30s → 60s → 120s → 5m cap)
 - Migrate GitHub App tokens from ConfigMap to Secret
 
-## v0.5.0 — Scale & Operability
+## v0.5.0 — Config Transforms
+
+The multi-site and multi-environment killer feature — adapt files at sync time without modifying source files in git.
+
+- **JSON path patches** — per-mapping patches that modify specific values in JSON files at sync time using jq-style paths (e.g., `.systemName`, `.remoteGateways[0].host`); patch values are templates that resolve against `{{ .Vars.* }}`, `{{ .Gateway.Name }}`, `{{ .Gateway.Namespace }}`, `{{ .Profile.Name }}`, and pod labels/annotations; source files stay unmodified in git
+- **Vars templating** — resolve `{{ .Vars.* }}` and gateway context inside file contents for mappings with `template: true`
+- Designer session project-level granularity (sync Project B while designer has Project A open)
+
+## v0.6.0 — Scale & Operability
 
 Remove scaling walls and make the agent more reactive.
 
@@ -30,7 +38,7 @@ Remove scaling walls and make the agent more reactive.
 - Webhook receiver rate limiting
 - In-flight sync completion deadline on graceful shutdown
 
-## v0.6.0 — Observability & Conditions
+## v0.7.0 — Observability & Conditions
 
 Operational visibility for fleet management.
 
@@ -39,13 +47,6 @@ Operational visibility for fleet management.
 - Post-sync health verification (project state, tag providers — not just scan 200)
 - Sync diff report in changes ConfigMap
 - Conflict detection when multiple profiles map to the same destination path
-
-## v0.7.0 — Developer Experience
-
-Features that solve real multi-site integrator pain points.
-
-- Config resource templating — resolve `{{.Vars.*}}` inside file contents for mappings with `template: true`
-- Designer session project-level granularity (sync Project B while designer has Project A open)
 - Validating admission webhook for GatewaySync CRs (reject invalid CRs at apply time)
 - Structured audit logging (per-sync JSON record: timestamp, commit, author, gateway, files, result)
 
