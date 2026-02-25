@@ -74,3 +74,22 @@
 [data-theme="dark"] .feature {
   background: var(--ifm-card-background-color);
 }
+
+/* Search bar: wider + keyboard shortcut hint */
+.aa-DetachedSearchButton {
+  min-width: 200px;
+  justify-content: space-between;
+  padding-right: 8px;
+}
+
+.aa-DetachedSearchButton::after {
+  content: "⌘K";
+  font-size: 0.7rem;
+  font-family: system-ui, sans-serif;
+  padding: 2px 6px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 4px;
+  color: var(--ifm-color-emphasis-600);
+  margin-left: auto;
+  flex-shrink: 0;
+}

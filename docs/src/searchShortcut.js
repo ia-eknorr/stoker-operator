@@ -15,10 +15,11 @@ if (typeof window !== "undefined") {
     }
 
     e.preventDefault();
+    e.stopPropagation();
 
-    const btn = document.querySelector(".dsla-search-wrapper button");
-    if (btn) {
-      btn.click();
-    }
+    setTimeout(() => {
+      const btn = document.querySelector(".dsla-search-wrapper button");
+      if (btn) btn.click();
+    }, 0);
   });
 }
