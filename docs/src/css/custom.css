@@ -76,10 +76,9 @@
   background: var(--ifm-card-background-color);
 }
 
-/* Search bar: wider + keyboard shortcut hint */
+/* Search bar: wider on desktop + keyboard shortcut hint */
 .aa-DetachedSearchButton {
   min-width: 200px;
-  justify-content: space-between;
   padding-right: 8px;
 }
 
@@ -95,6 +94,10 @@
 }
 
 @media (max-width: 996px) {
+  .aa-DetachedSearchButton {
+    min-width: unset;
+  }
+
   .search-shortcut-badge {
     display: none;
   }
