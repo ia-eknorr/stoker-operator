@@ -159,6 +159,17 @@ spec:
 
 The `{{.Vars.deploymentMode}}` in the **source path** selects `config/overlays/frontend/` from git — a directory that only exists for this profile. The destination path separates overlays from core config so Ignition reads from both directories at runtime.
 
+## Alternative: JSON patches for targeted field updates
+
+If you only need to update a few specific fields in JSON files — rather than authoring full `{{...}}` syntax in the source — consider [JSON Patches](./json-patches.md) instead. Patches are more surgical: you specify an sjson dot-notation path and the value to set, and the agent applies the change after staging without touching the rest of the file.
+
+| Approach | When to use |
+|----------|-------------|
+| `template: true` | Source files are authored with `{{...}}` syntax; works on any text format |
+| `patches` | You want to override specific JSON field values without modifying source files |
+
+Both can be used on the same mapping — `template: true` runs first, then patches are applied.
+
 ## Binary file protection
 
 Files containing null bytes (`\x00`) are **rejected with an error** when `template: true` is set. This prevents accidental corruption of images, compiled modules, or other binary files.

@@ -205,9 +205,39 @@ An ordered list of source-to-destination file mappings. Applied top to bottom; l
 |-------|------|----------|---------|-------------|
 | `source` | string | Yes | — | Repo-relative path to copy from |
 | `destination` | string | Yes | — | Path relative to the Ignition data directory (`/ignition-data/`) |
-| `type` | string | No | `"dir"` | Entry type — `"dir"` or `"file"` |
+| `type` | string | No | inferred | Entry type — `"dir"` or `"file"`. When omitted the agent infers the type from the filesystem at sync time. |
 | `required` | bool | No | `false` | Fail sync if the source path doesn't exist |
 | `template` | bool | No | `false` | Resolve Go template variables inside file **contents** at sync time. Binary files (null bytes) are rejected. See [Content Templating](../guides/content-templating.md). |
+| `patches` | []object | No | — | Targeted JSON field updates applied at sync time. See [JSON Patches](../guides/json-patches.md). |
+
+:::note
+`type` is inferred from `os.Stat` on the source path — no default value is required in the CR. If you set it explicitly, it acts as a validation hint: the agent errors if the actual filesystem type doesn't match. A source that doesn't exist (when `required: false`) defaults to `"dir"` and is silently skipped.
+:::
+
+#### `patches`
+
+Each entry in `patches` applies one set of JSON field updates to files matched by the `file` glob:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file` | string | No | Path relative to the mapping's destination. Supports doublestar globs (`**/*.json`). For **file mappings** (`type: file`), omit to target the mapped file itself. |
+| `set` | map[string]string | Yes | sjson dot-notation paths to values. Values support Go template syntax (same variables as `template: true`). |
+
+```yaml
+mappings:
+  - source: "config/resources/ignition/core"
+    destination: "config/resources/ignition/core"
+    patches:
+      - file: "system-properties/config.json"
+        set:
+          systemName: "{{ .GatewayName }}"
+          httpPort: "{{ .Vars.gatewayPort }}"
+      - file: "db-connections/*.json"
+        set:
+          connection.host: "{{ .Vars.dbHost }}"
+```
+
+See the [JSON Patches guide](../guides/json-patches.md) for full examples, type inference rules, and path syntax.
 
 #### Template variables
 

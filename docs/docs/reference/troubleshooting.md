@@ -177,6 +177,57 @@ templating config/some-file.json: resolving template in .../some-file.json: temp
 3. Verify the GitHub App has **Contents: Read** permission on the repository and is installed on the target repo.
 4. Check for clock skew — the JWT used for token exchange is valid for 60 seconds. A controller with clock skew >60s relative to GitHub will get 401 errors.
 
+### JSON patch errors
+
+**Symptoms:** Agent logs show `patching <destination>: ...` errors, sync aborts.
+
+#### File is not valid JSON
+
+```
+patching config/db-connections: applying patch to connections.json at "host": file is not valid JSON
+```
+
+**Cause:** The matched file isn't parseable as JSON. Common causes: the file is a `.properties` or `.conf` format that isn't JSON, or it contains a JSON syntax error.
+
+**Fix:** Narrow the `file` glob so it only matches actual JSON files, or fix the JSON syntax error in the source file.
+
+#### Invalid patch file pattern
+
+```
+patching config/resources: invalid patch file pattern "db-connections/[*.json": ...
+```
+
+**Cause:** The `file` field contains a malformed glob (e.g., unclosed `[`).
+
+**Fix:** Correct the glob syntax. Use `**/*.json` for recursive matching or `*.json` for the immediate directory.
+
+#### Undefined template variable in patch value
+
+```
+patching config/resources: resolving patch value for path "host": executing template "{{ .Vars.dbHost }}": map has no entry for key "dbHost"
+```
+
+**Cause:** A `set` value references `{{ .Vars.dbHost }}` but `dbHost` is not defined in `spec.sync.defaults.vars` or the profile's `vars`.
+
+**Fix:** Add the missing key to your vars:
+
+```yaml
+sync:
+  defaults:
+    vars:
+      dbHost: "postgres.svc.cluster.local"   # add the missing key
+```
+
+#### Type mismatch
+
+```
+mapping[0]: type mismatch: spec says "dir" but /repo/config/versions/.versions.json is a file
+```
+
+**Cause:** The `type` field was explicitly set in the CR, but the source path is a different type (file vs directory) on the filesystem.
+
+**Fix:** Remove the `type` field to let the agent infer it automatically, or correct the value to match the actual source (`"file"` for a single file, `"dir"` for a directory).
+
 ### Agent CrashLoopBackOff
 
 **Symptoms:** The `stoker-agent` container repeatedly crashes.

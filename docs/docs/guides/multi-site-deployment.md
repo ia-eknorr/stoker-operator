@@ -1,5 +1,5 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 title: Multi-Site Deployment
 description: Run Stoker across multiple sites or environments with per-gateway configuration.
 ---
@@ -12,7 +12,24 @@ This guide covers the patterns for deploying Stoker across multiple sites, envir
 
 Every Ignition gateway requires a unique `systemName` in `config/resources/local/ignition/system-properties/config.json`. In a multi-gateway deployment, this is the primary blocker for a shared git repository: the file is identical except for the system name field.
 
-Stoker solves this with **content templating** (`template: true`). See the [Content Templating guide](./content-templating.md) for full details.
+Stoker solves this in two ways depending on whether you prefer to modify source files or not:
+
+- **Content templating** (`template: true`) — author `{{.GatewayName}}` directly in the JSON source file. See the [Content Templating guide](./content-templating.md).
+- **JSON patches** (`patches`) — keep source files unmodified in git; the agent sets `systemName` at sync time using a dot-notation path. See the [JSON Patches guide](./json-patches.md).
+
+### Patches approach (source file unchanged)
+
+```yaml
+mappings:
+  - source: "config/resources/ignition/core"
+    destination: "config/resources/ignition/core"
+    patches:
+      - file: "system-properties/config.json"
+        set:
+          systemName: "{{ .GatewayName }}"
+```
+
+The source file in git stays as `{"systemName": "placeholder", ...}` and the agent injects the correct value per gateway at sync time.
 
 ## Repository structure
 
@@ -226,7 +243,8 @@ spec:
 
 - [ ] `**/.uuid` is in `excludePatterns`
 - [ ] `template: true` is set on any mapping that contains `{{...}}` in file contents
-- [ ] `vars` keys in templates match the keys defined in `spec.sync.defaults.vars` or `spec.sync.profiles.<name>.vars`
+- [ ] `patches` are used for targeted JSON field updates (no source-file modification required)
+- [ ] `vars` keys in templates or patch values match the keys defined in `spec.sync.defaults.vars` or `spec.sync.profiles.<name>.vars`
 - [ ] Each gateway pod has `stoker.io/inject: "true"` and optionally `stoker.io/profile: "<name>"`
 - [ ] The namespace has label `stoker.io/injection=enabled`
 - [ ] Binary files (images, compiled modules) are in a separate mapping **without** `template: true`, or are excluded
