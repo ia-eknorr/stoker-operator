@@ -14,8 +14,12 @@ import (
 type ResolvedMapping struct {
 	Source      string // absolute path on disk
 	Destination string // relative to live dir
-	Type        string // "dir" or "file"
+	Type        string // "dir" or "file" (inferred from filesystem if empty)
 	Template    bool   // if true, resolve Go template vars in file contents during staging
+	// ApplyPatches is called on each staged file for this mapping. It receives the
+	// absolute path of the staged file and applies JSON field patches in-place.
+	// Nil means no patches are configured for this mapping.
+	ApplyPatches func(stagedPath string) error
 }
 
 // SyncPlan describes a complete profile-based sync operation.
@@ -133,6 +137,12 @@ func stageSingleFile(m ResolvedMapping, stagingDir string, excludes []string, st
 		}
 	}
 
+	if m.ApplyPatches != nil {
+		if err := m.ApplyPatches(dstPath); err != nil {
+			return fmt.Errorf("patching %s: %w", m.Destination, err)
+		}
+	}
+
 	staged[filepath.ToSlash(m.Destination)] = true
 	return nil
 }
@@ -191,6 +201,12 @@ func stageDirectory(m ResolvedMapping, stagingDir string, excludes []string, sta
 		if m.Template && applyTemplate != nil {
 			if err := applyTemplate(dstPath); err != nil {
 				return fmt.Errorf("templating %s: %w", dstRel, err)
+			}
+		}
+
+		if m.ApplyPatches != nil {
+			if err := m.ApplyPatches(dstPath); err != nil {
+				return fmt.Errorf("patching %s: %w", dstRel, err)
 			}
 		}
 

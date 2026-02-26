@@ -283,18 +283,24 @@ func (r *GatewaySyncReconciler) resolveProfiles(gs *stokerv1alpha1.GatewaySync) 
 			rp.Vars = merged
 		}
 
-		// Resolve mappings
+		// Resolve mappings — Type is intentionally passed through as-is (empty means
+		// infer from filesystem at sync time; non-empty is validated by the agent).
 		rp.Mappings = make([]stokertypes.ResolvedMapping, len(p.Mappings))
 		for i, m := range p.Mappings {
+			patches := make([]stokertypes.ResolvedPatch, len(m.Patches))
+			for j, p := range m.Patches {
+				patches[j] = stokertypes.ResolvedPatch{
+					File: p.File,
+					Set:  p.Set,
+				}
+			}
 			rp.Mappings[i] = stokertypes.ResolvedMapping{
 				Source:      m.Source,
 				Destination: m.Destination,
 				Type:        m.Type,
 				Required:    m.Required,
 				Template:    m.Template,
-			}
-			if rp.Mappings[i].Type == "" {
-				rp.Mappings[i].Type = "dir"
+				Patches:     patches,
 			}
 		}
 

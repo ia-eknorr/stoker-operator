@@ -391,6 +391,36 @@ spec:
                                   {{.Labels.key}}, {{.Vars.key}}, {{.Namespace}}, {{.Ref}}, {{.Commit}}.
                                 minLength: 1
                                 type: string
+                              patches:
+                                description: |-
+                                  patches applies surgical JSON field updates to files within this mapping after staging.
+                                  Only valid for JSON files. Each patch targets a specific file (or glob pattern) and
+                                  sets one or more fields using sjson-style dot-notation paths.
+                                items:
+                                  description: MappingPatch applies sjson-style field
+                                    updates to a JSON file within a mapping.
+                                  properties:
+                                    file:
+                                      description: |-
+                                        file is the path to the JSON file to patch, relative to the mapping's destination.
+                                        Supports glob patterns (e.g. "*.json", "connections/*.json") for directory mappings.
+                                        For file mappings, file may be omitted — the mapped file itself is patched.
+                                      type: string
+                                    set:
+                                      additionalProperties:
+                                        type: string
+                                      description: |-
+                                        set is a map of sjson dot-notation paths to template values.
+                                        Nested fields use dots: "SystemName", "networkInterfaces.0.address".
+                                        Values support Go template syntax: {{.GatewayName}}, {{.Vars.key}}, etc.
+                                        Values are type-inferred: JSON literals (true, false, numbers) are set as their
+                                        native types; everything else is set as a string.
+                                      minProperties: 1
+                                      type: object
+                                  required:
+                                  - set
+                                  type: object
+                                type: array
                               required:
                                 description: |-
                                   required causes the sync to fail if the source path does not exist
@@ -411,9 +441,9 @@ spec:
                                   Binary files (containing null bytes) are rejected with an error.
                                 type: boolean
                               type:
-                                default: dir
-                                description: type is the entry type — "dir" (default)
-                                  or "file".
+                                description: |-
+                                  type is optional and inferred automatically from the repository at sync time.
+                                  Explicit values ("dir" or "file") are validated against the actual entry type.
                                 enum:
                                 - dir
                                 - file

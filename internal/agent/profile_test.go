@@ -3,6 +3,7 @@ package agent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	stokertypes "github.com/ia-eknorr/stoker-operator/pkg/types"
@@ -326,7 +327,283 @@ func TestBuildSyncPlan_TemplateFlag(t *testing.T) {
 	}
 }
 
-// Helpers
+// ── applyJSONPatch ────────────────────────────────────────────────────────────
+
+func TestApplyJSONPatch_StringValue(t *testing.T) {
+	in := `{"SystemName":"old","enabled":true}`
+	out, err := applyJSONPatch(in, "SystemName", "gateway-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Value should be a JSON string, not bare text.
+	if out != `{"SystemName":"gateway-1","enabled":true}` {
+		t.Errorf("got %s", out)
+	}
+}
+
+func TestApplyJSONPatch_BoolInference(t *testing.T) {
+	in := `{"enabled":false}`
+	out, err := applyJSONPatch(in, "enabled", "true")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// "true" should be decoded to boolean true, not string "true".
+	if out != `{"enabled":true}` {
+		t.Errorf("got %s", out)
+	}
+}
+
+func TestApplyJSONPatch_NumberInference(t *testing.T) {
+	in := `{"port":8088}`
+	out, err := applyJSONPatch(in, "port", "9090")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// "9090" should be decoded to number, not string "9090".
+	if out != `{"port":9090}` {
+		t.Errorf("got %s", out)
+	}
+}
+
+func TestApplyJSONPatch_NestedPath(t *testing.T) {
+	in := `{"networkInterfaces":[{"address":"10.0.0.1"}]}`
+	out, err := applyJSONPatch(in, "networkInterfaces.0.address", "192.168.1.100")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out != `{"networkInterfaces":[{"address":"192.168.1.100"}]}` {
+		t.Errorf("got %s", out)
+	}
+}
+
+func TestApplyJSONPatch_InvalidJSON(t *testing.T) {
+	_, err := applyJSONPatch("not json", "key", "value")
+	if err == nil {
+		t.Error("expected error for non-JSON content, got nil")
+	}
+}
+
+// ── buildApplyPatchesFunc ─────────────────────────────────────────────────────
+
+func TestBuildApplyPatchesFunc_NilWhenNoPatches(t *testing.T) {
+	fn := buildApplyPatchesFunc(nil, &TemplateContext{}, t.TempDir(), "config", false)
+	if fn != nil {
+		t.Error("expected nil func for empty patches")
+	}
+}
+
+func TestBuildApplyPatchesFunc_ExactFileMatch(t *testing.T) {
+	tmp := t.TempDir()
+	stagingDir := filepath.Join(tmp, "staging")
+	mappingDest := "config/resources/core"
+
+	// Write a staged file at the expected path.
+	target := filepath.Join(stagingDir, mappingDest, "system-properties", "config.json")
+	writeFile(t, target, `{"SystemName":"old-name","port":8088}`)
+
+	ctx := &TemplateContext{GatewayName: "site-gateway", Vars: map[string]string{}}
+	patches := []stokertypes.ResolvedPatch{
+		{
+			File: "system-properties/config.json",
+			Set:  map[string]string{"SystemName": "{{.GatewayName}}"},
+		},
+	}
+
+	fn := buildApplyPatchesFunc(patches, ctx, stagingDir, mappingDest, false)
+	if fn == nil {
+		t.Fatal("expected non-nil func")
+	}
+	if err := fn(target); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content, _ := os.ReadFile(target)
+	if !contains(string(content), `"SystemName":"site-gateway"`) {
+		t.Errorf("patch not applied, got: %s", content)
+	}
+}
+
+func TestBuildApplyPatchesFunc_GlobMatch(t *testing.T) {
+	tmp := t.TempDir()
+	stagingDir := filepath.Join(tmp, "staging")
+	mappingDest := "config/db-connections"
+
+	conn1 := filepath.Join(stagingDir, mappingDest, "conn1.json")
+	conn2 := filepath.Join(stagingDir, mappingDest, "conn2.json")
+	writeFile(t, conn1, `{"host":"old-host"}`)
+	writeFile(t, conn2, `{"host":"old-host"}`)
+
+	ctx := &TemplateContext{Vars: map[string]string{"dbHost": "db.prod.internal"}}
+	patches := []stokertypes.ResolvedPatch{
+		{File: "*.json", Set: map[string]string{"host": "{{.Vars.dbHost}}"}},
+	}
+
+	fn := buildApplyPatchesFunc(patches, ctx, stagingDir, mappingDest, false)
+	for _, f := range []string{conn1, conn2} {
+		if err := fn(f); err != nil {
+			t.Fatalf("fn(%s): %v", f, err)
+		}
+		content, _ := os.ReadFile(f)
+		if !contains(string(content), `"host":"db.prod.internal"`) {
+			t.Errorf("patch not applied to %s, got: %s", f, content)
+		}
+	}
+}
+
+func TestBuildApplyPatchesFunc_NoMatchSkipped(t *testing.T) {
+	tmp := t.TempDir()
+	stagingDir := filepath.Join(tmp, "staging")
+	mappingDest := "config/resources"
+
+	notTarget := filepath.Join(stagingDir, mappingDest, "other.json")
+	writeFile(t, notTarget, `{"key":"original"}`)
+
+	ctx := &TemplateContext{Vars: map[string]string{}}
+	patches := []stokertypes.ResolvedPatch{
+		{File: "system-properties/config.json", Set: map[string]string{"key": "changed"}},
+	}
+
+	fn := buildApplyPatchesFunc(patches, ctx, stagingDir, mappingDest, false)
+	if err := fn(notTarget); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content, _ := os.ReadFile(notTarget)
+	if !contains(string(content), `"key":"original"`) {
+		t.Errorf("file should not have been modified, got: %s", content)
+	}
+}
+
+func TestBuildApplyPatchesFunc_EmptyFileField_FileMappingCase(t *testing.T) {
+	tmp := t.TempDir()
+	stagingDir := filepath.Join(tmp, "staging")
+	// For a file mapping, mappingDest is the file itself (e.g. config/versions/.versions.json).
+	mappingDest := "config/versions/.versions.json"
+
+	target := filepath.Join(stagingDir, mappingDest)
+	writeFile(t, target, `{"gatewayVersion":"1.0.0"}`)
+
+	ctx := &TemplateContext{Vars: map[string]string{"gatewayVersion": "2.5.0"}}
+	patches := []stokertypes.ResolvedPatch{
+		// file omitted — should match the mapped file itself.
+		{Set: map[string]string{"gatewayVersion": "{{.Vars.gatewayVersion}}"}},
+	}
+
+	fn := buildApplyPatchesFunc(patches, ctx, stagingDir, mappingDest, true)
+	if err := fn(target); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	content, _ := os.ReadFile(target)
+	if !contains(string(content), `"gatewayVersion":"2.5.0"`) {
+		t.Errorf("patch not applied, got: %s", content)
+	}
+}
+
+// ── Type inference ────────────────────────────────────────────────────────────
+
+func TestInferMappingType_InfersDir(t *testing.T) {
+	tmp := t.TempDir()
+	dir := filepath.Join(tmp, "mydir")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	typ, err := inferMappingType(dir, "")
+	if err != nil || typ != "dir" {
+		t.Errorf("inferMappingType(dir) = %q, %v; want dir, nil", typ, err)
+	}
+}
+
+func TestInferMappingType_InfersFile(t *testing.T) {
+	tmp := t.TempDir()
+	f := filepath.Join(tmp, "config.json")
+	writeFile(t, f, "{}")
+	typ, err := inferMappingType(f, "")
+	if err != nil || typ != "file" {
+		t.Errorf("inferMappingType(file) = %q, %v; want file, nil", typ, err)
+	}
+}
+
+func TestInferMappingType_HintMismatch(t *testing.T) {
+	tmp := t.TempDir()
+	f := filepath.Join(tmp, "config.json")
+	writeFile(t, f, "{}")
+	_, err := inferMappingType(f, "dir") // file is actually a file, not dir
+	if err == nil {
+		t.Error("expected type mismatch error, got nil")
+	}
+}
+
+func TestInferMappingType_NonexistentDefaultsToDir(t *testing.T) {
+	typ, err := inferMappingType("/nonexistent/path", "")
+	if err != nil || typ != "dir" {
+		t.Errorf("nonexistent path: got %q, %v; want dir, nil", typ, err)
+	}
+}
+
+func TestBuildSyncPlan_TypeInferredFromFilesystem(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo")
+	liveDir := filepath.Join(tmp, "live")
+
+	// Create a file (not a dir) at the source path.
+	writeFile(t, filepath.Join(repoPath, "config", ".versions.json"), `{"version":"1.0"}`)
+
+	profile := &stokertypes.ResolvedProfile{
+		Mappings: []stokertypes.ResolvedMapping{
+			// Type omitted — should be inferred as "file".
+			{Source: "config/.versions.json", Destination: "config/.versions.json"},
+		},
+	}
+	ctx := &TemplateContext{GatewayName: "gw", Vars: map[string]string{}}
+
+	plan, err := buildSyncPlan(profile, ctx, repoPath, liveDir)
+	if err != nil {
+		t.Fatalf("buildSyncPlan: %v", err)
+	}
+	if plan.Mappings[0].Type != "file" {
+		t.Errorf("expected inferred type=file, got %q", plan.Mappings[0].Type)
+	}
+}
+
+func TestBuildSyncPlan_PatchesWiredToMapping(t *testing.T) {
+	tmp := t.TempDir()
+	repoPath := filepath.Join(tmp, "repo")
+	liveDir := filepath.Join(tmp, "live")
+
+	writeFile(t, filepath.Join(repoPath, "config", "system-properties", "config.json"),
+		`{"SystemName":"placeholder"}`)
+
+	profile := &stokertypes.ResolvedProfile{
+		Mappings: []stokertypes.ResolvedMapping{
+			{
+				Source:      "config",
+				Destination: "config/resources/core",
+				Patches: []stokertypes.ResolvedPatch{
+					{
+						File: "system-properties/config.json",
+						Set:  map[string]string{"SystemName": "{{.GatewayName}}"},
+					},
+				},
+			},
+		},
+	}
+	ctx := &TemplateContext{GatewayName: "prod-gw", Vars: map[string]string{}}
+
+	plan, err := buildSyncPlan(profile, ctx, repoPath, liveDir)
+	if err != nil {
+		t.Fatalf("buildSyncPlan: %v", err)
+	}
+	if plan.Mappings[0].ApplyPatches == nil {
+		t.Error("expected ApplyPatches func to be set on mapping with patches")
+	}
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+func contains(s, substr string) bool {
+	return strings.Contains(s, substr)
+}
 
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
