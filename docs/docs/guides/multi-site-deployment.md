@@ -220,7 +220,7 @@ Each site has its own namespace with:
 - Its own GatewaySync CR (can track different refs per site)
 - Its own GitHub App token Secret (created by the controller)
 - Its own gateway API key Secret
-- Namespace label `stoker.io/injection=enabled`
+- Namespace label `stoker.io/injection=enabled` (only if `webhook.namespaceSelector.requireLabel=true`)
 
 ## Important: protect the `.uuid` file
 
