@@ -123,10 +123,10 @@ webhookReceiver:
       key: "webhook-secret"
 
 # -- Additional annotations to add to the controller pod.
-# Example:
-#   podAnnotations:
-#     admission.datadoghq.com/enabled: "false"
 podAnnotations: {}
+
+# -- Additional labels to add to the controller pod.
+podLabels: {}
 
 # -- Node selector labels for scheduling the controller pod.
 # Example:
