@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.4.1] - 2026-02-28
+
+### Added
+
+- **`{{.PodOrdinal}}` template variable** — StatefulSet replica index sourced from the `apps.kubernetes.io/pod-index` label (K8s 1.27+) with automatic fallback to parsing the trailing integer from the pod name; enables `"{{.GatewayName}}-{{.PodOrdinal}}"` patterns for exact parity with existing systemName conventions (#83)
+
+### Changed
+
+- **Var key validation** — `spec.sync.defaults.vars` and `spec.sync.profiles.*.vars` keys are now validated as Go identifiers (letters, digits, underscores; no dashes) at reconcile time; invalid keys set `ProfilesValid=False` with a clear error message instead of silently failing with a cryptic template parse error at sync time (#83)
+
 ## [v0.4.0] - 2026-02-27
 
 ### Added
