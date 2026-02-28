@@ -6,17 +6,23 @@ description: Planned features and milestones for Stoker.
 
 # Roadmap
 
-Current version: **v0.4.0** — [see the changelog](https://github.com/ia-eknorr/stoker-operator/blob/main/CHANGELOG.md) for release history.
+Current version: **v0.4.3** — [see the changelog](https://github.com/ia-eknorr/stoker-operator/blob/main/CHANGELOG.md) for release history.
 
-## v0.4.0 — Content Templating & Config Transforms
+## v0.4.x — Content Templating, Config Transforms & Agent Hardening
 
-Multi-site GitOps and surgical config overrides — the prerequisites for production multi-gateway deployments.
+Multi-site GitOps, surgical config overrides, and production reliability improvements.
 
 - ✅ **Content templating** (`template: true`) — resolve `{{.GatewayName}}`, `{{.PodName}}`, `{{.Vars.key}}`, and all context variables inside file **contents** at sync time; binary files rejected with a clear error
 - ✅ **`vars` in `spec.sync.defaults`** — define default template variables shared across all profiles; profile `vars` override per-key
 - ✅ **`{{.PodName}}` in TemplateContext** — enables unique system names for StatefulSet replicas
 - ✅ **GitHub App tokens → Secret** — installation tokens written to a controller-managed Secret (`stoker-github-token-{crName}`) and mounted into agent pods; no longer stored in ConfigMap
 - ✅ **JSON path patches** — per-mapping `patches` blocks that set specific JSON fields at sync time using sjson dot-notation paths; values resolve Go template syntax; `file` field supports doublestar globs; `type` field optional and inferred from filesystem
+- ✅ **`{{.PodOrdinal}}` template variable** — StatefulSet replica index from `apps.kubernetes.io/pod-index` label with pod-name fallback; enables `"{{.Vars.projectName}}-{{.PodOrdinal}}"` patterns
+- ✅ **Var key validation** — `vars` keys validated as Go identifiers at reconcile time; invalid keys produce a clear `ProfilesValid=False` condition
+- ✅ **`podAnnotations` and `podLabels` Helm values** — add arbitrary annotations and labels to the controller pod
+- ✅ **Increased agent startup probe timeout** — `failureThreshold` raised to 150 (5 min) to accommodate initial clone of large repositories
+- ✅ **Native git for agent clone/fetch** — replaced go-git with `exec.Command("git", ...)` using shallow clones; eliminates OOM kills on large repos
+- ✅ **Alpine-based agent image** — replaced distroless with `alpine:3.21 + git + openssh-client`; same security context
 
 ## v0.5.0 — Observability & Reliability
 

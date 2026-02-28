@@ -34,6 +34,8 @@ helm install stoker oci://ghcr.io/ia-eknorr/charts/stoker-operator \
 | `resources.limits.memory` | string | `128Mi` | Controller memory limit. |
 | `nodeSelector` | object | `{}` | Node selector labels for the controller pod. |
 | `tolerations` | list | `[]` | Tolerations for scheduling on tainted nodes. |
+| `podAnnotations` | object | `{}` | Additional annotations to add to the controller pod. |
+| `podLabels` | object | `{}` | Additional labels to add to the controller pod. |
 | `affinity` | object | `{}` | Affinity rules for the controller pod. |
 
 ### cert-manager
