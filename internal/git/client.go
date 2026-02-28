@@ -261,11 +261,35 @@ func buildGitEnv(repoURL string) (string, []string, func(), error) {
 		if err := os.WriteFile(tmpKey, keyData, 0600); err != nil {
 			return repoURL, nil, noop, fmt.Errorf("writing SSH key to /tmp: %w", err)
 		}
-		env := append(base, fmt.Sprintf(
-			"GIT_SSH_COMMAND=ssh -i %s -o StrictHostKeyChecking=no -o BatchMode=yes -o IdentitiesOnly=yes",
-			tmpKey,
-		))
-		return repoURL, env, func() { _ = os.Remove(tmpKey) }, nil
+
+		// OpenSSH refuses to run when the current UID has no /etc/passwd entry.
+		// Kubernetes pods inherit runAsUser from the pod spec (e.g. uid 2003 for
+		// Ignition), which may not exist in Alpine's passwd. Write a shell wrapper
+		// that uses nss_wrapper to inject a minimal passwd entry for the current UID
+		// before invoking ssh. The wrapper lives in /tmp (writable emptyDir).
+		wrapperPath := "/tmp/stoker-ssh"
+		wrapper := fmt.Sprintf(`#!/bin/sh
+uid=$(id -u); gid=$(id -g)
+printf "agent:x:%%d:%%d::/tmp:/sbin/nologin\n" "$uid" "$gid" > /tmp/.nss-passwd
+printf "agent:x:%%d:\n" "$gid" > /tmp/.nss-group
+_nss=$(ls /usr/lib/libnss_wrapper.so* 2>/dev/null | head -1)
+if [ -n "$_nss" ]; then
+  NSS_WRAPPER_PASSWD=/tmp/.nss-passwd NSS_WRAPPER_GROUP=/tmp/.nss-group LD_PRELOAD="$_nss" \
+  exec ssh -i %s -o StrictHostKeyChecking=no -o BatchMode=yes -o IdentitiesOnly=yes "$@"
+else
+  exec ssh -i %s -o StrictHostKeyChecking=no -o BatchMode=yes -o IdentitiesOnly=yes "$@"
+fi
+`, tmpKey, tmpKey)
+		if err := os.WriteFile(wrapperPath, []byte(wrapper), 0700); err != nil {
+			_ = os.Remove(tmpKey)
+			return repoURL, nil, noop, fmt.Errorf("writing SSH wrapper: %w", err)
+		}
+		env := append(base, "GIT_SSH_COMMAND="+wrapperPath)
+		cleanup := func() {
+			_ = os.Remove(tmpKey)
+			_ = os.Remove(wrapperPath)
+		}
+		return repoURL, env, cleanup, nil
 	}
 
 	if tokenFile := os.Getenv("GIT_TOKEN_FILE"); tokenFile != "" {

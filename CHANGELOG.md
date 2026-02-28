@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.4.4] - 2026-02-28
+
+### Fixed
+
+- **SSH auth on pods with custom `runAsUser`** — OpenSSH refuses to run when the current UID has no `/etc/passwd` entry; agent pods inherit the Ignition pod's `runAsUser` (e.g. `2003`) which doesn't exist in Alpine's passwd; fix uses an SSH wrapper script in `/tmp` that leverages `nss_wrapper` to inject a minimal passwd entry for the current UID before invoking ssh (#86)
+
+### Changed
+
+- **Agent base image** — added `nss_wrapper` package to `alpine:3.21` image for the SSH passwd fix (#86)
+
 ## [v0.4.3] - 2026-02-28
 
 ### Changed
@@ -127,6 +137,7 @@ Initial release — controller + agent sidecar for Git-driven Ignition gateway c
 - **Functional test suite** with phased kind cluster tests (phases 02-09)
 - Unit tests with envtest for controller and syncengine
 
+[v0.4.4]: https://github.com/ia-eknorr/stoker-operator/releases/tag/v0.4.4
 [v0.4.3]: https://github.com/ia-eknorr/stoker-operator/releases/tag/v0.4.3
 [v0.4.2]: https://github.com/ia-eknorr/stoker-operator/releases/tag/v0.4.2
 [v0.4.1]: https://github.com/ia-eknorr/stoker-operator/releases/tag/v0.4.1
