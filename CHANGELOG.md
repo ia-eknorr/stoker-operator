@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Added
 
-- **Bearer token auth for webhook receiver** — `webhookReceiver.token` Helm block (parallel to `hmac`); controller reads `WEBHOOK_BEARER_TOKEN` env var and validates `Authorization: Bearer <token>` header; if both HMAC and token are configured, either method can authorize a request; enables Kargo and other callers that cannot compute HMAC-SHA256 signatures
+- **Bearer token auth for webhook receiver** — `webhookReceiver.token` Helm block (parallel to `hmac`); controller reads `WEBHOOK_BEARER_TOKEN` env var and validates `Authorization: Bearer <token>` header; any HTTP client that can set headers can authenticate; if both HMAC and token are configured, either method can authorize a request
 
 ## [v0.4.7] - 2026-03-01
 
