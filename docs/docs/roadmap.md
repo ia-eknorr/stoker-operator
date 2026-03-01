@@ -18,7 +18,7 @@ Metrics, dashboards, and monitoring for production deployments.
 - ✓ ServiceMonitor and PodMonitor templates with `honorLabels` support
 - SSH host key verification with optional `knownHostsSecretRef` (fix `InsecureIgnoreHostKey`)
 - Exponential backoff for transient git and API errors (30s → 60s → 120s → 5m cap)
-- Designer session project-level granularity (sync Project B while designer has Project A open)
+- Graceful shutdown with in-flight sync completion deadline (prevent partial file writes on SIGTERM)
 
 ## v0.6.0 — Scale & Operability
 
@@ -29,7 +29,6 @@ Remove scaling walls and make the agent more reactive.
 - Per-gateway status ConfigMap sharding (eliminate write contention at 10+ gateways)
 - `emptyDir` size limit on agent repo volume (prevent node disk pressure from large repos)
 - Webhook receiver rate limiting
-- In-flight sync completion deadline on graceful shutdown
 
 ## v0.7.0 — Conditions & Validation
 
@@ -48,6 +47,7 @@ Operational visibility and safety for fleet management.
 These are valuable but not yet scoped into versioned milestones. They'll be prioritized based on user feedback.
 
 **Safety & Trust:**
+- Designer session project-level granularity (sync Project B while designer has Project A open)
 - Pre-sync backup with auto-rollback on scan failure
 - Module management (`.modl` sync to `modules/` with `postAction: restart`)
 - Per-CR webhook HMAC secrets (replace global HMAC)
