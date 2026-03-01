@@ -75,6 +75,14 @@ type GatewaySyncReconciler struct {
 
 func (r *GatewaySyncReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
+	reconcileStart := time.Now()
+	reconcileResult := resultSuccess
+
+	// Observe reconcile duration and increment counter on return.
+	defer func() {
+		reconcileDuration.WithLabelValues(req.Name, req.Namespace).Observe(time.Since(reconcileStart).Seconds())
+		reconcileTotal.WithLabelValues(req.Name, req.Namespace, reconcileResult).Inc()
+	}()
 
 	// Fetch the CR — NotFound is expected after finalizer cleanup race
 	var gs stokerv1alpha1.GatewaySync
@@ -82,6 +90,7 @@ func (r *GatewaySyncReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
+		reconcileResult = resultError
 		return ctrl.Result{}, err
 	}
 
@@ -111,6 +120,7 @@ func (r *GatewaySyncReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	if gs.Spec.Paused {
 		log.Info("CR is paused, skipping reconciliation")
+		crPaused.WithLabelValues(gs.Name, gs.Namespace).Set(1)
 		wasPaused := conditionHasReason(gs.Status.Conditions, conditions.TypeReady, conditions.ReasonPaused)
 		r.setCondition(ctx, &gs, conditions.TypeReady, metav1.ConditionFalse, conditions.ReasonPaused, "Reconciliation paused")
 		if !wasPaused {
@@ -118,6 +128,7 @@ func (r *GatewaySyncReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 		return ctrl.Result{}, r.patchStatus(ctx, &gs, base)
 	}
+	crPaused.WithLabelValues(gs.Name, gs.Namespace).Set(0)
 
 	// --- Step 1: Validate profiles ---
 
@@ -133,12 +144,16 @@ func (r *GatewaySyncReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err := r.validateGitSecrets(ctx, &gs); err != nil {
 		r.setCondition(ctx, &gs, conditions.TypeReady, metav1.ConditionFalse, conditions.ReasonReconciling, err.Error())
 		_ = r.patchStatus(ctx, &gs, base)
+		reconcileResult = resultRequeue
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
 	// --- Step 3: Resolve git ref via ls-remote ---
 
+	refStart := time.Now()
 	result, err := r.resolveRef(ctx, &gs)
+	refResolveDuration.WithLabelValues(gs.Name, gs.Namespace).Observe(time.Since(refStart).Seconds())
+
 	if err != nil {
 		reason := conditions.ReasonRefResolutionFailed
 		if gs.Spec.Git.Auth != nil && gs.Spec.Git.Auth.GitHubApp != nil && strings.Contains(err.Error(), "GitHub App") {
@@ -151,6 +166,7 @@ func (r *GatewaySyncReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 		gs.Status.RefResolutionStatus = "Error"
 		_ = r.patchStatus(ctx, &gs, base)
+		reconcileResult = resultRequeue
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
@@ -170,6 +186,7 @@ func (r *GatewaySyncReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err := r.validateAPIKeySecret(ctx, &gs); err != nil {
 		r.setCondition(ctx, &gs, conditions.TypeReady, metav1.ConditionFalse, conditions.ReasonReconciling, err.Error())
 		_ = r.patchStatus(ctx, &gs, base)
+		reconcileResult = resultRequeue
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
@@ -209,11 +226,16 @@ func (r *GatewaySyncReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	r.updateAllGatewaysSyncedCondition(ctx, &gs)
 	r.updateReadyCondition(ctx, &gs)
 
+	// --- Step 6.5: Update metrics ---
+
+	observeGatewayMetrics(&gs)
+
 	// --- Step 7: Update status ---
 
 	gs.Status.ObservedGeneration = gs.Generation
 	gs.Status.ProfileCount = int32(len(gs.Spec.Sync.Profiles))
 	if err := r.patchStatus(ctx, &gs, base); err != nil {
+		reconcileResult = resultError
 		return ctrl.Result{}, err
 	}
 
@@ -442,6 +464,11 @@ func (r *GatewaySyncReconciler) resolveGitHubAppToken(ctx context.Context, gs *s
 	}
 	r.tokenCache[cacheKey] = cachedToken{token: result.Token, expiry: result.ExpiresAt}
 
+	githubAppTokenExpiry.WithLabelValues(
+		fmt.Sprintf("%d", appAuth.AppID),
+		fmt.Sprintf("%d", appAuth.InstallationID),
+	).Set(float64(result.ExpiresAt.Unix()))
+
 	logf.FromContext(ctx).Info("exchanged GitHub App token", "appID", appAuth.AppID, "installationID", appAuth.InstallationID, "expiry", result.ExpiresAt)
 	return result.Token, nil
 }
@@ -449,6 +476,9 @@ func (r *GatewaySyncReconciler) resolveGitHubAppToken(ctx context.Context, gs *s
 // cleanupOwnedResources removes ConfigMaps and Secrets owned by this CR during deletion.
 func (r *GatewaySyncReconciler) cleanupOwnedResources(ctx context.Context, gs *stokerv1alpha1.GatewaySync) error {
 	log := logf.FromContext(ctx)
+
+	// Remove all Prometheus metric series for this CR.
+	cleanupCRMetrics(gs.Name, gs.Namespace)
 
 	// Clean up metadata, status, and changes ConfigMaps
 	cmNames := []string{

@@ -62,6 +62,54 @@ metrics:
 serviceMonitor:
   # -- Create a ServiceMonitor resource.
   enabled: false
+  # -- Additional labels for the ServiceMonitor (e.g. for Prometheus selector matching).
+  labels: {}
+  # -- Scrape interval. Falls back to the Prometheus default if empty.
+  interval: ""
+  # -- Scrape timeout. Falls back to the Prometheus default if empty.
+  scrapeTimeout: ""
+
+# -- PodMonitor for scraping agent sidecar metrics across all namespaces.
+# Requires the prometheus-operator CRDs to be installed in the cluster.
+podMonitor:
+  # -- Create a PodMonitor resource for agent sidecars.
+  enabled: false
+  # -- Additional labels for the PodMonitor (e.g. for Prometheus selector matching).
+  labels: {}
+  # -- Scrape interval. Falls back to the Prometheus default if empty.
+  interval: ""
+  # -- Scrape timeout. Falls back to the Prometheus default if empty.
+  scrapeTimeout: ""
+
+# -- PrometheusRule for Stoker alerting rules.
+# Requires the prometheus-operator CRDs to be installed in the cluster.
+prometheusRule:
+  # -- Create a PrometheusRule resource with default alerts.
+  enabled: false
+  # -- Additional labels for the PrometheusRule.
+  labels: {}
+  # -- Additional alerting rules appended to the default set.
+  additionalRules: []
+
+# -- Grafana dashboard provisioning via sidecar auto-discovery.
+# Creates a ConfigMap labeled `grafana_dashboard: "1"` that the Grafana sidecar
+# (k8s-sidecar) detects and provisions automatically. This is the standard
+# pattern used by kube-prometheus-stack and does not affect existing dashboards.
+# If your Grafana instance does not use the sidecar, you can import the dashboard
+# JSON manually from charts/stoker-operator/dashboards/stoker-overview.json.
+grafanaDashboard:
+  # -- Create a ConfigMap containing the Stoker Grafana dashboard.
+  # Enable when your Grafana uses the k8s-sidecar for dashboard auto-discovery
+  # (default in kube-prometheus-stack).
+  enabled: false
+  # -- Namespace for the dashboard ConfigMap. Defaults to the release namespace.
+  # Set this to your Grafana namespace if the sidecar only watches a specific namespace.
+  namespace: ""
+  # -- Additional labels for the dashboard ConfigMap.
+  # Override if your sidecar uses a label other than `grafana_dashboard: "1"`.
+  labels: {}
+  # -- Annotations for the dashboard ConfigMap.
+  annotations: {}
 
 # -- NetworkPolicy restricts ingress to the metrics port. Only allows traffic
 # from namespaces labeled `metrics: enabled`.
