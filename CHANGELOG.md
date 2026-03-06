@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [v0.5.1] - 2026-03-05
+
+### Fixed
+
+- **Orphan cleanup skips nested managed roots** — `cleanOrphans` and `computeDryRunDiff` returned `filepath.SkipDir` for any directory not directly under a managed root (e.g. `config/`), preventing traversal into nested destinations like `config/resources/dev/ignition/audit-profile`; orphan files and directories inside them were never deleted (`deleted: 0`); fix adds `isAncestorOfManagedRoot` to allow traversal through intermediate directories, and bubbles up empty directory removal after orphan file deletion (#99, #100)
+
 ## [v0.5.0] - 2026-03-01
 
 ### Added
@@ -183,6 +189,7 @@ Initial release — controller + agent sidecar for Git-driven Ignition gateway c
 - **Functional test suite** with phased kind cluster tests (phases 02-09)
 - Unit tests with envtest for controller and syncengine
 
+[v0.5.1]: https://github.com/ia-eknorr/stoker-operator/releases/tag/v0.5.1
 [v0.5.0]: https://github.com/ia-eknorr/stoker-operator/releases/tag/v0.5.0
 [v0.4.10]: https://github.com/ia-eknorr/stoker-operator/releases/tag/v0.4.10
 [v0.4.9]: https://github.com/ia-eknorr/stoker-operator/releases/tag/v0.4.9
