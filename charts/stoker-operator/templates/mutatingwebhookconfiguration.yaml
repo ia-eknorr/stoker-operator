@@ -17,9 +17,13 @@ webhooks:
         name: {{ include "stoker-operator.fullname" . }}-webhook-service
         namespace: {{ .Release.Namespace }}
         path: /mutate-v1-pod
-    failurePolicy: Ignore
+    failurePolicy: {{ .Values.webhook.failurePolicy }}
     matchPolicy: Equivalent
     reinvocationPolicy: IfNeeded
+{{- with .Values.webhook.objectSelector }}
+    objectSelector:
+      {{- toYaml . | nindent 6 }}
+{{- end }}
     namespaceSelector:
 {{- if .Values.webhook.namespaceSelector.requireLabel }}
       matchExpressions:

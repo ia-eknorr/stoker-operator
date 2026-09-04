@@ -111,6 +111,10 @@ Kubernetes: `>= 1.28.0`
 | networkPolicy.enabled | bool | `false` | Create a NetworkPolicy for the controller. |
 | nodeSelector | object | `{}` | Node selector labels for scheduling the controller pod. Example:   nodeSelector:     kubernetes.io/os: linux |
 | podAnnotations | object | `{}` | Additional annotations to add to the controller pod. |
+| podDisruptionBudget | object | `{"enabled":false,"maxUnavailable":null,"minAvailable":1}` | PodDisruptionBudget for the controller. Only meaningful with `replicaCount` >= 2; a PDB over a single replica blocks voluntary node drains without providing any availability benefit. |
+| podDisruptionBudget.enabled | bool | `false` | Create the PodDisruptionBudget. |
+| podDisruptionBudget.maxUnavailable | string | `nil` | Maximum unavailable replicas. Leave null to use `minAvailable`. |
+| podDisruptionBudget.minAvailable | int | `1` | Minimum available replicas. Mutually exclusive with `maxUnavailable`. |
 | podLabels | object | `{}` | Additional labels to add to the controller pod. |
 | podMonitor | object | `{"enabled":false,"interval":"","labels":{},"scrapeTimeout":""}` | PodMonitor for scraping agent sidecar metrics across all namespaces. Requires the prometheus-operator CRDs to be installed in the cluster. |
 | podMonitor.enabled | bool | `false` | Create a PodMonitor resource for agent sidecars. |
@@ -124,7 +128,7 @@ Kubernetes: `>= 1.28.0`
 | prometheusRule.labels | object | `{}` | Additional labels for the PrometheusRule. |
 | rbac | object | `{"autoBindAgent":{"enabled":true}}` | RBAC configuration for the agent sidecar. |
 | rbac.autoBindAgent.enabled | bool | `true` | Automatically create RoleBindings for the agent sidecar in namespaces where GatewaySync CRs exist. The controller discovers ServiceAccounts from gateway pods and binds only those SAs to the stoker-agent ClusterRole. Disable for environments that manage RBAC externally (e.g., GitOps-managed RBAC). |
-| replicaCount | int | `1` | Number of controller replicas. Only one replica holds the leader lock at a time; additional replicas provide fast failover. |
+| replicaCount | int | `1` | Number of controller replicas. Only one replica holds the leader lock at a time; additional replicas provide fast failover. Run at least 2 when `webhook.failurePolicy` is `Fail`, otherwise a single restarting controller blocks pod creation. |
 | resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"64Mi"}}` | CPU and memory resource requests/limits for the controller container. The controller runs git ls-remote (no clone) and watches CRs, so resource requirements are modest. |
 | serviceMonitor | object | `{"enabled":false,"interval":"","labels":{},"scrapeTimeout":""}` | Prometheus ServiceMonitor for automatic scrape target discovery. Requires the prometheus-operator CRDs to be installed in the cluster. |
 | serviceMonitor.enabled | bool | `false` | Create a ServiceMonitor resource. |
@@ -132,9 +136,11 @@ Kubernetes: `>= 1.28.0`
 | serviceMonitor.labels | object | `{}` | Additional labels for the ServiceMonitor (e.g. for Prometheus selector matching). |
 | serviceMonitor.scrapeTimeout | string | `""` | Scrape timeout. Falls back to the Prometheus default if empty. |
 | tolerations | list | `[]` | Tolerations for scheduling the controller pod on tainted nodes. |
-| webhook | object | `{"enabled":true,"namespaceSelector":{"requireLabel":false},"port":9443}` | Mutating webhook for sidecar injection. When enabled, pods with annotation `stoker.io/inject: "true"` get the stoker-agent sidecar injected automatically. By default, injection works in all namespaces except kube-system and kube-node-lease. |
+| webhook | object | `{"enabled":true,"failurePolicy":"Ignore","namespaceSelector":{"requireLabel":false},"objectSelector":{},"port":9443}` | Mutating webhook for sidecar injection. When enabled, pods with annotation `stoker.io/inject: "true"` get the stoker-agent sidecar injected automatically. By default, injection works in all namespaces except kube-system and kube-node-lease. |
 | webhook.enabled | bool | `true` | Enable the MutatingWebhookConfiguration and webhook Service. |
+| webhook.failurePolicy | string | `"Ignore"` | How the API server reacts when the webhook is unreachable. `Ignore` (default) fails open: pod creation succeeds without the agent sidecar, so a gateway can start silently unsynced. `Fail` fails closed and is the safer production choice, but a webhook outage then blocks pod creation for everything the selectors match -- so only set `Fail` together with `replicaCount` >= 2, a PodDisruptionBudget, and an `objectSelector` narrow enough that unrelated workloads are never gated on this webhook. |
 | webhook.namespaceSelector.requireLabel | bool | `false` | Require the stoker.io/injection=enabled label on namespaces for sidecar injection. When false (default), the webhook intercepts pod creates in all namespaces except kube-system and kube-node-lease. Enable for regulated environments that require explicit namespace opt-in. |
+| webhook.objectSelector | object | `{}` | Label selector limiting which pods the webhook is consulted for. Empty (default) means every pod in the selected namespaces. Note this matches pod LABELS -- the `stoker.io/inject` opt-in is an annotation, so it cannot be used here. Give injected gateways a dedicated label and select on it to make `failurePolicy: Fail` safe. Example:   objectSelector:     matchLabels:       stoker.io/managed: "true" |
 | webhook.port | int | `9443` | Webhook server port on the controller container. |
 | webhookReceiver | object | `{"enabled":false,"hmac":{"secret":"","secretRef":{"key":"webhook-secret","name":""}},"ingress":{"annotations":{},"enabled":false,"hosts":[],"ingressClassName":"","tls":[]},"port":9444,"token":{"secret":"","secretRef":{"key":"webhook-token","name":""}}}` | Git webhook receiver for push-event-driven sync. Disabled by default — enable when you want push-event-driven syncs. When disabled, the controller does not start the HTTP receiver server. When enabled without HMAC, any network client that can reach the Service can trigger a reconcile. Configure hmac for production use. |
 | webhookReceiver.enabled | bool | `false` | Enable the webhook receiver HTTP server and its Service. |
