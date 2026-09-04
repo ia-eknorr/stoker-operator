@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 > **Upgrading?** See the [Upgrading guide](https://knorrlabs.github.io/stoker-operator/upgrading) for the version policy, Kubernetes compatibility matrix, the CRD-on-`helm upgrade` caveat, and GitOps / ArgoCD specifics.
 
+## [v0.8.1] - 2026-09-04
+
+Dependency security release. No functional or API changes: the controller, the agent, and the chart behave exactly as in v0.8.0.
+
+### Security
+
+- **`golang.org/x/crypto` updated to v0.56.0**, picking up fixes for CVE-2026-46595, CVE-2026-56854, CVE-2026-56855, and CVE-2026-78662. Both binaries reach this package through go-git's SSH transport (#218)
+- **Documentation site dependencies updated**, closing 63 of the 65 advisories open against `docs/package-lock.json`. `serialize-javascript`, `sharp`, and `uuid` needed `overrides` to move past the versions Docusaurus pins. The two that remain are both `image-size@2.0.2` ([GHSA-w3rx-r6r6-pgpr](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr), [GHSA-5p2g-fcmc-qvqq](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq)), which has no patched release published. Nothing in the docs tree is built into the operator or agent images (#226)
+
+### Infrastructure
+
+- The documentation site now requires Node >= 20.9.0, up from >= 18.0, because `sharp` 0.35 and `serialize-javascript` 7 both do. CI already builds on Node 24 (#226)
+- go-logr v1.4.4 (#221), Ginkgo v2.32.1 (#223), and golangci-lint v2.13.2 (#224)
+- The sunset Go Report Card badge is gone from the README (#225)
+
 ## [v0.8.0] - 2026-09-04
 
 Controller availability release. The chart now defaults to a highly available controller so the pod-injection webhook keeps an endpoint while a node drains, closing the window where a gateway pod is admitted with no `stoker-agent` sidecar and then silently serves stale config. `failurePolicy` and an object selector are configurable for the first time, so fail-closed injection is now possible from downstream values.
@@ -293,6 +308,7 @@ Initial release — controller + agent sidecar for Git-driven Ignition gateway c
 - **Functional test suite** with phased kind cluster tests (phases 02-09)
 - Unit tests with envtest for controller and syncengine
 
+[v0.8.1]: https://github.com/knorrlabs/stoker-operator/releases/tag/v0.8.1
 [v0.8.0]: https://github.com/knorrlabs/stoker-operator/releases/tag/v0.8.0
 [v0.7.0]: https://github.com/knorrlabs/stoker-operator/releases/tag/v0.7.0
 [v0.6.1]: https://github.com/knorrlabs/stoker-operator/releases/tag/v0.6.1
