@@ -1,18 +1,56 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
   ],
-  "reviewers": [
-    "etknorr"
-  ],
+  "reviewers": ["etknorr"],
+  "minimumReleaseAge": "7 days",
+  "automerge": false,
   "packageRules": [
     {
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "automerge": true
+      "description": "Auditable project: every dependency change lands via reviewed PR. Never automerge.",
+      "matchPackageNames": ["*"],
+      "automerge": false
+    },
+    {
+      "description": "GitHub Actions move together.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    },
+    {
+      "description": "Docs site is not shipped with the operator; group its churn into one PR.",
+      "matchFileNames": ["docs/**"],
+      "groupName": "docs dependencies"
+    },
+    {
+      "description": "Go indirect patches are noise individually; batch them.",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "go indirect patches"
+    },
+    {
+      "description": "Kubernetes libraries must version in lockstep.",
+      "matchPackageNames": ["k8s.io/**", "sigs.k8s.io/**"],
+      "groupName": "kubernetes"
+    },
+    {
+      "description": "go-git is core to cloning; e2e does not run on PRs, so review these deliberately.",
+      "matchPackageNames": ["github.com/go-git/go-git/**"],
+      "addLabels": ["needs-e2e"]
+    },
+    {
+      "description": "Majors are opt-in from the dashboard, never opened unprompted.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
     }
-  ]
+  ],
+  "vulnerabilityAlerts": {
+    "description": "Security fixes bypass the 7-day quarantine and are labelled for triage.",
+    "minimumReleaseAge": null,
+    "addLabels": ["security"]
+  },
+  "osvVulnerabilityAlerts": true
 }
