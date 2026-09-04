@@ -178,7 +178,7 @@ kubectl get events -n quickstart --sort-by=.lastTimestamp | tail -15
 kubectl get gs -n quickstart
 ```
 
-After 1-2 minutes you should see:
+The gateway must finish commissioning before its first successful scan, so allow a few minutes. You should then see:
 
 ```text
 NAME         REF    GATEWAYS     READY   STATUS              AGE
@@ -230,7 +230,16 @@ Open the Ignition web UI to see the synced projects:
 kubectl port-forward -n quickstart svc/ignition 8088:8088
 ```
 
-Navigate to `http://localhost:8088` in your browser. After completing the initial commissioning wizard, you should see the project from the example repository.
+Navigate to `http://localhost:8088` in your browser. The values file above sets `acceptIgnitionEULA` and an edition, so the gateway **auto-commissions** — there is no commissioning wizard to complete.
+
+The gateway name in the top-left reads `ignition-blue`, which comes from the synced `config/` directory. To browse the synced project you need to log in. Retrieve the generated `admin` password:
+
+```bash
+kubectl get secret -n quickstart ignition-gateway-admin-password \
+  --template='{{ printf "%s\n" (index .data "gateway-admin-password" | base64decode) }}'
+```
+
+Log in as `admin` with that password to see the `blue` project from the example repository.
 
 Try changing the git ref to a specific tag:
 
