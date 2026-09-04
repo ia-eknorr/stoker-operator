@@ -1,19 +1,21 @@
 # -- Number of controller replicas. Only one replica holds the leader lock
-# at a time; additional replicas provide fast failover. Run at least 2 when
-# `webhook.failurePolicy` is `Fail`, otherwise a single restarting controller
-# blocks pod creation.
-replicaCount: 1
+# at a time; additional replicas provide fast failover. Two is the default so
+# the webhook Service keeps an endpoint while a node drains or the controller
+# is rescheduled. Dropping to 1 reintroduces the window where gateway pods are
+# admitted with no agent sidecar.
+replicaCount: 2
 
 # -- PodDisruptionBudget for the controller. Only meaningful with
 # `replicaCount` >= 2; a PDB over a single replica blocks voluntary node
 # drains without providing any availability benefit.
 podDisruptionBudget:
-  # -- Create the PodDisruptionBudget.
-  enabled: false
-  # -- Minimum available replicas. Mutually exclusive with `maxUnavailable`.
-  minAvailable: 1
-  # -- Maximum unavailable replicas. Leave null to use `minAvailable`.
-  maxUnavailable: null
+  # -- Create the PodDisruptionBudget. Keeps a voluntary node drain from taking
+  # every controller replica at once, which would empty the webhook Service.
+  enabled: true
+  # -- Minimum available replicas. Leave null to use `maxUnavailable`.
+  minAvailable: null
+  # -- Maximum unavailable replicas. Mutually exclusive with `minAvailable`.
+  maxUnavailable: 1
 
 # -- Controller container image configuration.
 image:
@@ -268,7 +270,19 @@ nodeSelector: {}
 tolerations: []
 
 # -- Affinity rules for scheduling the controller pod.
-affinity: {}
+# -- Pod affinity rules. Defaults to soft anti-affinity so the two replicas
+# prefer separate nodes but still schedule on a single-node cluster such as
+# kind. Use `requiredDuringSchedulingIgnoredDuringExecution` on a multi-node
+# cluster where you want the spread guaranteed.
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: stoker-operator
 
 # -- PriorityClass for the controller pod, e.g. system-cluster-critical.
 # Protects the operator from eviction under node pressure.
