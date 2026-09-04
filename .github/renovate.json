@@ -1,18 +1,28 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended"
-  ],
-  "reviewers": [
-    "etknorr"
-  ],
+  "extends": ["github>knorrlabs/renovate-config"],
   "packageRules": [
     {
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
-      "automerge": true
+      "description": "Docs site is not shipped with the operator; group its churn into one PR.",
+      "matchFileNames": ["docs/**"],
+      "groupName": "docs dependencies"
+    },
+    {
+      "description": "Go indirect patches are noise individually; batch them.",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "matchUpdateTypes": ["patch"],
+      "groupName": "go indirect patches"
+    },
+    {
+      "description": "Kubernetes libraries must version in lockstep.",
+      "matchPackageNames": ["k8s.io/**", "sigs.k8s.io/**"],
+      "groupName": "kubernetes"
+    },
+    {
+      "description": "go-git is core to cloning; e2e does not run on PRs, so review these deliberately.",
+      "matchPackageNames": ["github.com/go-git/go-git/**"],
+      "addLabels": ["needs-e2e"]
     }
   ]
 }
