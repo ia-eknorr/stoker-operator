@@ -42,7 +42,7 @@ You should see a `controller-manager` pod in `Running` state.
 
 ## 2. Create secrets
 
-This quickstart uses [`ia-eknorr/test-ignition-project`](https://github.com/ia-eknorr/test-ignition-project), a public example repository created for this guide. It contains an Ignition stack with two gateway configurations (`ignition-blue` and `ignition-red`), each with their own projects and config directories. We'll sync `ignition-blue` to a single gateway.
+This quickstart uses [`etknorr/test-ignition-project`](https://github.com/etknorr/test-ignition-project), a public example repository created for this guide. It contains an Ignition stack with two gateway configurations (`ignition-blue` and `ignition-red`), each with their own projects and config directories. We'll sync `ignition-blue` to a single gateway.
 
 Create a namespace and a secret so the agent can authenticate with the gateway's scan API. The example repository includes a pre-configured API token resource:
 
@@ -71,7 +71,7 @@ metadata:
   namespace: quickstart
 spec:
   git:
-    repo: "https://github.com/ia-eknorr/test-ignition-project.git"
+    repo: "https://github.com/etknorr/test-ignition-project.git"
     ref: "main"
   gateway:
     api:
