@@ -81,7 +81,7 @@ Kubernetes: `>= 1.28.0`
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| affinity | object | `{}` | Affinity rules for scheduling the controller pod. |
+| affinity | object | `{"podAntiAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"podAffinityTerm":{"labelSelector":{"matchLabels":{"app.kubernetes.io/name":"stoker-operator"}},"topologyKey":"kubernetes.io/hostname"},"weight":100}]}}` | Pod affinity rules. Defaults to soft anti-affinity so the two replicas prefer separate nodes but still schedule on a single-node cluster such as kind. Use `requiredDuringSchedulingIgnoredDuringExecution` on a multi-node cluster where you want the spread guaranteed. |
 | agentImage | object | `{"repository":"ghcr.io/knorrlabs/stoker-agent","tag":""}` | Agent sidecar image injected into gateway pods by the webhook. |
 | agentImage.repository | string | `"ghcr.io/knorrlabs/stoker-agent"` | Image repository for the sync agent sidecar. |
 | agentImage.tag | string | `""` | Image tag. Defaults to the chart's appVersion if empty. |
@@ -111,10 +111,10 @@ Kubernetes: `>= 1.28.0`
 | networkPolicy.enabled | bool | `false` | Create a NetworkPolicy for the controller. |
 | nodeSelector | object | `{}` | Node selector labels for scheduling the controller pod. Example:   nodeSelector:     kubernetes.io/os: linux |
 | podAnnotations | object | `{}` | Additional annotations to add to the controller pod. |
-| podDisruptionBudget | object | `{"enabled":false,"maxUnavailable":null,"minAvailable":1}` | PodDisruptionBudget for the controller. Only meaningful with `replicaCount` >= 2; a PDB over a single replica blocks voluntary node drains without providing any availability benefit. |
-| podDisruptionBudget.enabled | bool | `false` | Create the PodDisruptionBudget. |
-| podDisruptionBudget.maxUnavailable | string | `nil` | Maximum unavailable replicas. Leave null to use `minAvailable`. |
-| podDisruptionBudget.minAvailable | int | `1` | Minimum available replicas. Mutually exclusive with `maxUnavailable`. |
+| podDisruptionBudget | object | `{"enabled":true,"maxUnavailable":1,"minAvailable":null}` | PodDisruptionBudget for the controller. Only meaningful with `replicaCount` >= 2; a PDB over a single replica blocks voluntary node drains without providing any availability benefit. |
+| podDisruptionBudget.enabled | bool | `true` | Create the PodDisruptionBudget. Keeps a voluntary node drain from taking every controller replica at once, which would empty the webhook Service. |
+| podDisruptionBudget.maxUnavailable | int | `1` | Maximum unavailable replicas. Mutually exclusive with `minAvailable`. |
+| podDisruptionBudget.minAvailable | string | `nil` | Minimum available replicas. Leave null to use `maxUnavailable`. |
 | podLabels | object | `{}` | Additional labels to add to the controller pod. |
 | podMonitor | object | `{"enabled":false,"interval":"","labels":{},"scrapeTimeout":""}` | PodMonitor for scraping agent sidecar metrics across all namespaces. Requires the prometheus-operator CRDs to be installed in the cluster. |
 | podMonitor.enabled | bool | `false` | Create a PodMonitor resource for agent sidecars. |
@@ -128,7 +128,7 @@ Kubernetes: `>= 1.28.0`
 | prometheusRule.labels | object | `{}` | Additional labels for the PrometheusRule. |
 | rbac | object | `{"autoBindAgent":{"enabled":true}}` | RBAC configuration for the agent sidecar. |
 | rbac.autoBindAgent.enabled | bool | `true` | Automatically create RoleBindings for the agent sidecar in namespaces where GatewaySync CRs exist. The controller discovers ServiceAccounts from gateway pods and binds only those SAs to the stoker-agent ClusterRole. Disable for environments that manage RBAC externally (e.g., GitOps-managed RBAC). |
-| replicaCount | int | `1` | Number of controller replicas. Only one replica holds the leader lock at a time; additional replicas provide fast failover. Run at least 2 when `webhook.failurePolicy` is `Fail`, otherwise a single restarting controller blocks pod creation. |
+| replicaCount | int | `2` | Number of controller replicas. Only one replica holds the leader lock at a time; additional replicas provide fast failover. Two is the default so the webhook Service keeps an endpoint while a node drains or the controller is rescheduled. Dropping to 1 reintroduces the window where gateway pods are admitted with no agent sidecar. |
 | resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"64Mi"}}` | CPU and memory resource requests/limits for the controller container. The controller runs git ls-remote (no clone) and watches CRs, so resource requirements are modest. |
 | serviceMonitor | object | `{"enabled":false,"interval":"","labels":{},"scrapeTimeout":""}` | Prometheus ServiceMonitor for automatic scrape target discovery. Requires the prometheus-operator CRDs to be installed in the cluster. |
 | serviceMonitor.enabled | bool | `false` | Create a ServiceMonitor resource. |
