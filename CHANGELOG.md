@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 > **Upgrading?** See the [Upgrading guide](https://knorrlabs.github.io/stoker-operator/upgrading) for the version policy, Kubernetes compatibility matrix, the CRD-on-`helm upgrade` caveat, and GitOps / ArgoCD specifics.
 
+## [v0.8.0] - 2026-09-04
+
+Controller availability release. The chart now defaults to a highly available controller so the pod-injection webhook keeps an endpoint while a node drains, closing the window where a gateway pod is admitted with no `stoker-agent` sidecar and then silently serves stale config. `failurePolicy` and an object selector are configurable for the first time, so fail-closed injection is now possible from downstream values.
+
+### Breaking Changes
+
+- **The chart defaults to two controller replicas and creates a PodDisruptionBudget.** A `helm upgrade` from v0.7.x adds a second controller pod and a `PodDisruptionBudget` (`maxUnavailable: 1`) that did not exist before. The PDB participates in voluntary node drains, so a cluster that drains nodes on a schedule will see the controller respected as a disruption target. Leader election already gates reconciliation, so the second replica is a warm standby rather than a second active controller. To keep the old behaviour, set `replicaCount: 1` and `podDisruptionBudget.enabled: false` (#219)
+- **Default pod anti-affinity is applied to the controller.** The rule is `preferredDuringSchedulingIgnoredDuringExecution`, so both replicas still schedule on a single-node cluster such as kind. Override `affinity` to change or remove it (#219)
+
+### Added
+
+- **`webhook.failurePolicy`** makes the pod-injection webhook's failure mode configurable. It stays `Ignore` by default for compatibility. Setting `Fail` makes a sidecar-less gateway pod impossible rather than merely unlikely, and should be paired with `replicaCount` >= 2 and a narrow `webhook.objectSelector` (#215)
+- **`webhook.objectSelector`** limits which pods the webhook is consulted for, which is what makes `failurePolicy: Fail` safe to turn on. Note it matches pod **labels**: the `stoker.io/inject` opt-in is an annotation and cannot be selected on, so give managed gateways a dedicated label. An example is in `values.yaml` (#215)
+- **`podDisruptionBudget`** values (`enabled`, `minAvailable`, `maxUnavailable`) for the controller (#215)
+
+### Security
+
+- **go-git updated to v5.19.2**, picking up hardening against worktree operations following symlinks and against malicious reference names writing outside the reference storage (#210)
+- **`qs` forced to 6.16.0** in the documentation site, closing an array-limit bypass that `body-parser` and `express` pinned below the fix (#214)
+
+### Fixed
+
+- The quickstart and the `GatewaySync` sample manifest pointed at the pre-rename `ia-eknorr` account and resolved only through GitHub's redirect. They now reference `etknorr` directly (#212)
+- The quickstart's Explore step described a commissioning wizard that never appears, because the documented values file auto-commissions the gateway. It now retrieves the generated admin password and states the real sync timing (#212)
+
+### Infrastructure
+
+- Renovate no longer automerges anything. Every dependency change lands through a reviewed pull request, releases are held for seven days before they are eligible, and majors require dashboard approval. Shared policy lives in [knorrlabs/renovate-config](https://github.com/knorrlabs/renovate-config) (#213)
+
 ## [v0.7.0] - 2026-06-23
 
 Organization migration to **knorrlabs**. No functional changes — runtime behavior is identical to v0.6.1. This release re-homes the Go module, container images, and Helm chart under the new org so consumers no longer depend on the `ia-eknorr` GitHub redirect.
@@ -264,6 +293,7 @@ Initial release — controller + agent sidecar for Git-driven Ignition gateway c
 - **Functional test suite** with phased kind cluster tests (phases 02-09)
 - Unit tests with envtest for controller and syncengine
 
+[v0.8.0]: https://github.com/knorrlabs/stoker-operator/releases/tag/v0.8.0
 [v0.7.0]: https://github.com/knorrlabs/stoker-operator/releases/tag/v0.7.0
 [v0.6.1]: https://github.com/knorrlabs/stoker-operator/releases/tag/v0.6.1
 [v0.6.0]: https://github.com/knorrlabs/stoker-operator/releases/tag/v0.6.0
