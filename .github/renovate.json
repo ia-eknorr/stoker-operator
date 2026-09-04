@@ -1,24 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    ":dependencyDashboard",
-    ":semanticCommits"
-  ],
-  "reviewers": ["etknorr"],
-  "minimumReleaseAge": "7 days",
-  "automerge": false,
+  "extends": ["github>knorrlabs/.github"],
   "packageRules": [
-    {
-      "description": "Auditable project: every dependency change lands via reviewed PR. Never automerge.",
-      "matchPackageNames": ["*"],
-      "automerge": false
-    },
-    {
-      "description": "GitHub Actions move together.",
-      "matchManagers": ["github-actions"],
-      "groupName": "github-actions"
-    },
     {
       "description": "Docs site is not shipped with the operator; group its churn into one PR.",
       "matchFileNames": ["docs/**"],
@@ -40,17 +23,6 @@
       "description": "go-git is core to cloning; e2e does not run on PRs, so review these deliberately.",
       "matchPackageNames": ["github.com/go-git/go-git/**"],
       "addLabels": ["needs-e2e"]
-    },
-    {
-      "description": "Majors are opt-in from the dashboard, never opened unprompted.",
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
     }
-  ],
-  "vulnerabilityAlerts": {
-    "description": "Security fixes bypass the 7-day quarantine and are labelled for triage.",
-    "minimumReleaseAge": null,
-    "addLabels": ["security"]
-  },
-  "osvVulnerabilityAlerts": true
+  ]
 }
