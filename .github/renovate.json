@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>knorrlabs/.github"],
+  "extends": ["github>knorrlabs/renovate-config"],
   "packageRules": [
     {
       "description": "Docs site is not shipped with the operator; group its churn into one PR.",
