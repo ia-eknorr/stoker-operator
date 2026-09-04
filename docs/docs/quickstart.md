@@ -42,7 +42,7 @@ You should see a `controller-manager` pod in `Running` state.
 
 ## 2. Create secrets
 
-This quickstart uses [`ia-eknorr/test-ignition-project`](https://github.com/ia-eknorr/test-ignition-project), a public example repository created for this guide. It contains an Ignition stack with two gateway configurations (`ignition-blue` and `ignition-red`), each with their own projects and config directories. We'll sync `ignition-blue` to a single gateway.
+This quickstart uses [`etknorr/test-ignition-project`](https://github.com/etknorr/test-ignition-project), a public example repository created for this guide. It contains an Ignition stack with two gateway configurations (`ignition-blue` and `ignition-red`), each with their own projects and config directories. We'll sync `ignition-blue` to a single gateway.
 
 Create a namespace and a secret so the agent can authenticate with the gateway's scan API. The example repository includes a pre-configured API token resource:
 
@@ -71,7 +71,7 @@ metadata:
   namespace: quickstart
 spec:
   git:
-    repo: "https://github.com/ia-eknorr/test-ignition-project.git"
+    repo: "https://github.com/etknorr/test-ignition-project.git"
     ref: "main"
   gateway:
     api:
@@ -178,7 +178,7 @@ kubectl get events -n quickstart --sort-by=.lastTimestamp | tail -15
 kubectl get gs -n quickstart
 ```
 
-After 1-2 minutes you should see:
+The gateway must finish commissioning before its first successful scan, so allow a few minutes. You should then see:
 
 ```text
 NAME         REF    GATEWAYS     READY   STATUS              AGE
@@ -230,7 +230,16 @@ Open the Ignition web UI to see the synced projects:
 kubectl port-forward -n quickstart svc/ignition 8088:8088
 ```
 
-Navigate to `http://localhost:8088` in your browser. After completing the initial commissioning wizard, you should see the project from the example repository.
+Navigate to `http://localhost:8088` in your browser. The values file above sets `acceptIgnitionEULA` and an edition, so the gateway **auto-commissions** — there is no commissioning wizard to complete.
+
+The gateway name in the top-left reads `ignition-blue`, which comes from the synced `config/` directory. To browse the synced project you need to log in. Retrieve the generated `admin` password:
+
+```bash
+kubectl get secret -n quickstart ignition-gateway-admin-password \
+  --template='{{ printf "%s\n" (index .data "gateway-admin-password" | base64decode) }}'
+```
+
+Log in as `admin` with that password to see the `blue` project from the example repository.
 
 Try changing the git ref to a specific tag:
 

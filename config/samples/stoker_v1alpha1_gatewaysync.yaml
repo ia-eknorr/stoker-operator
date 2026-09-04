@@ -6,7 +6,7 @@ metadata:
   name: quickstart
 spec:
   git:
-    repo: "https://github.com/ia-eknorr/test-ignition-project.git"
+    repo: "https://github.com/etknorr/test-ignition-project.git"
     ref: "main"
   gateway:
     api:
