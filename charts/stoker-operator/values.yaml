@@ -1,6 +1,19 @@
 # -- Number of controller replicas. Only one replica holds the leader lock
-# at a time; additional replicas provide fast failover.
+# at a time; additional replicas provide fast failover. Run at least 2 when
+# `webhook.failurePolicy` is `Fail`, otherwise a single restarting controller
+# blocks pod creation.
 replicaCount: 1
+
+# -- PodDisruptionBudget for the controller. Only meaningful with
+# `replicaCount` >= 2; a PDB over a single replica blocks voluntary node
+# drains without providing any availability benefit.
+podDisruptionBudget:
+  # -- Create the PodDisruptionBudget.
+  enabled: false
+  # -- Minimum available replicas. Mutually exclusive with `maxUnavailable`.
+  minAvailable: 1
+  # -- Maximum unavailable replicas. Leave null to use `minAvailable`.
+  maxUnavailable: null
 
 # -- Controller container image configuration.
 image:
@@ -125,6 +138,23 @@ webhook:
   enabled: true
   # -- Webhook server port on the controller container.
   port: 9443
+  # -- How the API server reacts when the webhook is unreachable.
+  # `Ignore` (default) fails open: pod creation succeeds without the agent
+  # sidecar, so a gateway can start silently unsynced. `Fail` fails closed and
+  # is the safer production choice, but a webhook outage then blocks pod
+  # creation for everything the selectors match -- so only set `Fail` together
+  # with `replicaCount` >= 2, a PodDisruptionBudget, and an `objectSelector`
+  # narrow enough that unrelated workloads are never gated on this webhook.
+  failurePolicy: Ignore
+  # -- Label selector limiting which pods the webhook is consulted for.
+  # Empty (default) means every pod in the selected namespaces. Note this
+  # matches pod LABELS -- the `stoker.io/inject` opt-in is an annotation, so it
+  # cannot be used here. Give injected gateways a dedicated label and select on
+  # it to make `failurePolicy: Fail` safe. Example:
+  #   objectSelector:
+  #     matchLabels:
+  #       stoker.io/managed: "true"
+  objectSelector: {}
   namespaceSelector:
     # -- Require the stoker.io/injection=enabled label on namespaces
     # for sidecar injection. When false (default), the webhook intercepts
