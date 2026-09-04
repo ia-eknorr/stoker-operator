@@ -8,7 +8,7 @@ require (
 	github.com/go-logr/logr v1.4.4
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/onsi/ginkgo/v2 v2.32.1
-	github.com/onsi/gomega v1.42.0
+	github.com/onsi/gomega v1.43.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/tidwall/sjson v1.2.5
 	golang.org/x/crypto v0.56.0
